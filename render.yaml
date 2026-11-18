@@ -1,8 +1,9 @@
 services:
   - type: web
-    name: diniy-viktorina-bot
+  - name: diniy-viktorina-bot
     env: python
-    region: Frankfurt
-    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
