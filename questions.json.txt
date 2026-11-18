@@ -1,0 +1,14 @@
+[
+  {
+    "question": "Islom dinida nechta farz amal bor?",
+    "answer": "5 ta"
+  },
+  {
+    "question": "Qur'oni Karim nechta suradan iborat?",
+    "answer": "114 ta"
+  },
+  {
+    "question": "Birinchi hidoyat kelgan g'or qanday ataladi?",
+    "answer": "Hiro"
+  }
+]
