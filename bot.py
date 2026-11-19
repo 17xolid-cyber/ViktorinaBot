@@ -749,7 +749,9 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
   else:
     group_notice = (
         f"Botni {admin_mention} 1 umrlikka faollashtirdi. Bot bir umr"
-        " davomida uxlamasdan xizmatingizda!"
+        " davomida uxlamasdan xizmatingizda!\n\n"
+        "Eslatma: bir umrlik tarif bot yoki ushbu guruh o'chirilguncha amal"
+        " qiladi."
     )
 
   group_sent = False
