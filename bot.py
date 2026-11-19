@@ -176,7 +176,7 @@ def format_scores_text(
     medal = (
         "🥇 "
         if idx == 1
-        else ("🥈 " if idx == 2 else ("🥉 " if idx == 3 else "⭐ "))
+        else ("🥈 " if idx == 2 else ("🥉 " if idx == 3 else "🎖️ "))
     )
     if mention_all:
       player_label = format_mention_html(uid, data)
