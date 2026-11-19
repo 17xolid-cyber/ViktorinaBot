@@ -2,9 +2,10 @@ import asyncio
 import json
 import os
 import random
+import re
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -72,9 +73,35 @@ NUMBER_ALIASES = {
     "114": "bir yuz o'n to'rt",
 }
 
+HONORIFIC_PATTERNS = [
+    r"\balayhissalom\b",
+    r"\balayhis[\s\-]*salom\b",
+    r"\balayhi[\s\-]*as[\s\-]*salom\b",
+    r"\ba\.?\s*s\.?\b",
+    r"\bpayg'?ambar(?:i)?(?:imiz)?\b",
+    r"\broziyallohu[\s\-]*anhu(?:mo)?\b",
+    r"\brodiyallohu[\s\-]*anhu(?:mo)?\b",
+    r"\broziallohu[\s\-]*anhu(?:mo)?\b",
+    r"\brodiallohu[\s\-]*anhu(?:mo)?\b",
+    r"\broziyallohu[\s\-]*anho\b",
+    r"\brodiyallohu[\s\-]*anho\b",
+    r"\broziyallohu[\s\-]*anhum\b",
+    r"\brodiyallohu[\s\-]*anhum\b",
+    r"\br\.?\s*a\.?\b",
+    r"\bsahoba(?:si)?\b",
+]
+
 
 def cyrillic_to_latin(text: str) -> str:
   return "".join(CYR_TO_LAT.get(ch, ch) for ch in text)
+
+
+def strip_honorifics(text: str) -> str:
+  cleaned = text
+  for pattern in HONORIFIC_PATTERNS:
+    cleaned = re.sub(pattern, " ", cleaned, flags=re.IGNORECASE)
+  cleaned = re.sub(r"[.,!?()\"«»“”]+", " ", cleaned)
+  return " ".join(cleaned.split()).strip()
 
 
 def normalize_answer(text: str) -> set[str]:
@@ -89,12 +116,17 @@ def normalize_answer(text: str) -> set[str]:
 
   variants = {cleaned}
 
-  words = cleaned.split()
+  without_honorifics = strip_honorifics(cleaned)
+  if without_honorifics:
+    variants.add(without_honorifics)
+
+  base_for_suffix = without_honorifics if without_honorifics else cleaned
+  words = base_for_suffix.split()
   if len(words) > 1 and words[-1] in {"ta", "tasi", "donasi", "nafar"}:
     no_suffix = " ".join(words[:-1])
     variants.add(no_suffix)
   else:
-    no_suffix = cleaned
+    no_suffix = base_for_suffix
 
   for num, word in NUMBER_ALIASES.items():
     if no_suffix == num:
