@@ -331,8 +331,8 @@ async def cmd_start(message: types.Message):
       "Assalomu alaykum! Diniy viktorina botiga xush kelibsiz.\n\n"
       "Buyruqlar:\n"
       "• /next — yangi savol berish yoki keyingi savolga o'tish\n"
-      "• /score — joriy reytingni ko'rish\n"
-      "• /end — reytingni yakunlash (faqat adminlar uchun)"
+      "• /reyting — joriy reytingni ko'rish\n"
+      "• /tugatish — reytingni yakunlash (faqat adminlar uchun)"
   )
 
 
