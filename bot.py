@@ -699,7 +699,7 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
   if len(args) < 1:
     await message.answer(
         "Foydalanish: <code>/faollashtir <chat_id> [kun]</code>\n"
-        "Masalan: <code>/faollashtir -1001234567890 30</code>\n"
+        "Masalan: <code>/faollashtir -1001234567890 10</code>\n"
         "Cheksiz muddat uchun kun yozmang: <code>/faollashtir"
         " -1001234567890</code>",
         parse_mode=ParseMode.HTML,
@@ -734,10 +734,28 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
   }
   save_access()
 
+  group_notice = (
+      f"Bot {days} kun davomida uxlamasdan xizmatingizda!"
+      if days is not None
+      else "Bot bir umr davomida uxlamasdan xizmatingizda!"
+  )
+  group_sent = True
+  try:
+    await bot.send_message(chat_id=target_cid, text=group_notice)
+  except Exception:
+    group_sent = False
+
+  extra_status = (
+      "\n📩 Guruhga xabar yuborildi."
+      if group_sent
+      else "\n⚠️ Guruhga xabar yuborib bo'lmadi (bot guruhda bormi tekshiring)."
+  )
+
   await message.answer(
       f"✅ Guruh faollashtirildi!\n"
       f"Chat ID: <code>{target_cid}</code>\n"
-      f"Amal qilish muddati: <b>{html.escape(get_expiry_text(target_cid))}</b>",
+      f"Amal qilish muddati: <b>{html.escape(get_expiry_text(target_cid))}</b>"
+      f"{extra_status}",
       parse_mode=ParseMode.HTML,
   )
 
