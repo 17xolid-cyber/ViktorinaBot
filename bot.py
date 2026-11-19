@@ -1,11 +1,13 @@
 import asyncio
+import html
 import json
 import os
 import random
 import re
-from aiohttp import web
 from aiogram import Bot, Dispatcher, types
+from aiogram.enums import ParseMode
 from aiogram.filters import Command
+from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -148,22 +150,38 @@ def get_display_name(user: types.User | None) -> str:
   return "O'yinchi"
 
 
+def format_mention_html(user_id: int, data: dict) -> str:
+  username = str(data.get("username") or "").strip().lstrip("@")
+  name = html.escape(str(data.get("name") or "O'yinchi"))
+  if username:
+    return f"@{html.escape(username)}"
+  if user_id:
+    return f'<a href="tg://user?id={user_id}">{name}</a>'
+  return name
+
+
 def format_scores_text(
-    scores: dict, title: str = "🏆 Shu guruh reyting jadvali:"
+    scores: dict,
+    title: str = "🏆 Shu guruh reyting jadvali:",
+    mention_all: bool = False,
 ) -> str:
   if not scores:
     return "Bu guruhda hozircha hech kim ball to'plagani yo'q."
   sorted_scores = sorted(
       scores.items(), key=lambda item: item[1]["score"], reverse=True
   )
-  lines = [f"{title}\n"]
-  for idx, (_, data) in enumerate(sorted_scores, start=1):
+  lines = [f"{html.escape(title)}\n"]
+  for idx, (uid, data) in enumerate(sorted_scores, start=1):
     medal = (
         "🥇 "
         if idx == 1
         else ("🥈 " if idx == 2 else ("🥉 " if idx == 3 else ""))
     )
-    lines.append(f"{idx}. {medal}{data['name']} — {data['score']} ball")
+    if mention_all:
+      player_label = format_mention_html(uid, data)
+    else:
+      player_label = html.escape(str(data.get("name") or "O'yinchi"))
+    lines.append(f"{idx}. {medal}{player_label} — {data['score']} ball")
   return "\n".join(lines)
 
 
@@ -189,6 +207,7 @@ def load_state() -> dict:
           if isinstance(info, dict):
             scores[int(uid)] = {
                 "name": str(info.get("name") or "O'yinchi"),
+                "username": str(info.get("username") or "").strip(),
                 "score": int(info.get("score", 0)),
             }
 
@@ -220,6 +239,7 @@ def save_state() -> None:
         "scores": {
             str(uid): {
                 "name": str(info.get("name") or "O'yinchi"),
+                "username": str(info.get("username") or "").strip(),
                 "score": int(info.get("score", 0)),
             }
             for uid, info in data.get("scores", {}).items()
@@ -314,7 +334,9 @@ async def cmd_quiz(message: types.Message):
 @dp.message(Command("score"))
 async def cmd_score(message: types.Message):
   chat_game = get_chat_game(message.chat.id)
-  await message.answer(format_scores_text(chat_game["scores"]))
+  await message.answer(
+      format_scores_text(chat_game["scores"]), parse_mode=ParseMode.HTML
+  )
 
 
 @dp.message(Command("end"))
@@ -337,7 +359,9 @@ async def cmd_end(message: types.Message):
     return
 
   text = format_scores_text(
-      scores, title="🏁 Viktorina reytingi yakunlandi! Yakuniy natijalar:"
+      scores,
+      title="🏁 Viktorina reytingi yakunlandi! Yakuniy natijalar:",
+      mention_all=True,
   )
   text += "\n\n🔄 Reyting tozalandi. Yangi o'yinni /quiz orqali boshlashingiz mumkin!"
 
@@ -345,7 +369,7 @@ async def cmd_end(message: types.Message):
   chat_game["current_question"] = None
   save_state()
 
-  await message.answer(text)
+  await message.answer(text, parse_mode=ParseMode.HTML)
 
 
 @dp.message()
@@ -375,21 +399,28 @@ async def check_answer(message: types.Message):
   if user_variants & expected_variants:
     user_id = message.from_user.id if message.from_user else 0
     user_name = get_display_name(message.from_user)
+    username = (
+        message.from_user.username if message.from_user and message.from_user.username else ""
+    )
     scores = chat_game["scores"]
 
     if user_id not in scores:
-      scores[user_id] = {"name": user_name, "score": 0}
+      scores[user_id] = {"name": user_name, "username": username, "score": 0}
     else:
       scores[user_id]["name"] = user_name
+      if username:
+        scores[user_id]["username"] = username
 
     scores[user_id]["score"] += 100
-    correct_ans_display = current_question.get("answer", "")
+    correct_ans_display = html.escape(str(current_question.get("answer", "")))
+    safe_user_name = html.escape(user_name)
 
     await message.reply(
-        f"🎉 Tabriklayman, {user_name}! To'g'ri javob.\n"
+        f"🎉 Tabriklayman, {safe_user_name}! To'g'ri javob.\n"
         f"To'g'ri javob: {correct_ans_display}\n"
         f"Sizga 100 ball berildi! 🎯\n\n"
-        f"{format_scores_text(scores, title='📊 Joriy reyting:')}"
+        f"{format_scores_text(scores, title='📊 Joriy reyting:')}",
+        parse_mode=ParseMode.HTML,
     )
 
     questions = load_questions()
