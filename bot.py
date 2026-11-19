@@ -4,10 +4,10 @@ import json
 import os
 import random
 import re
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
-from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -162,8 +162,9 @@ def format_mention_html(user_id: int, data: dict) -> str:
 
 def format_scores_text(
     scores: dict,
-    title: str = "🏆 Shu guruh reyting jadvali:",
+    title: str = "Ayni vaqtdagi natijalar 📊:",
     mention_all: bool = False,
+    winner_id: int | None = None,
 ) -> str:
   if not scores:
     return "Bu guruhda hozircha hech kim ball to'plagani yo'q."
@@ -175,13 +176,15 @@ def format_scores_text(
     medal = (
         "🥇 "
         if idx == 1
-        else ("🥈 " if idx == 2 else ("🥉 " if idx == 3 else ""))
+        else ("🥈 " if idx == 2 else ("🥉 " if idx == 3 else "⭐ "))
     )
     if mention_all:
       player_label = format_mention_html(uid, data)
+    elif winner_id is not None and uid == winner_id:
+      player_label = format_mention_html(uid, data)
     else:
       player_label = html.escape(str(data.get("name") or "O'yinchi"))
-    lines.append(f"{idx}. {medal}{player_label} — {data['score']} ball")
+    lines.append(f"{medal}{player_label} — {data['score']} ball")
   return "\n".join(lines)
 
 
@@ -435,14 +438,14 @@ async def check_answer(message: types.Message):
         if isinstance(raw_answer, list) and raw_answer
         else raw_answer
     )
-    correct_ans_display = html.escape(str(raw_disp))
-    safe_user_name = html.escape(user_name)
+    correct_ans_display = html.escape(str(raw_disp).capitalize())
+    winner_mention = format_mention_html(user_id, scores[user_id])
 
     await message.reply(
-        f"🎉 Tabriklayman, {safe_user_name}! To'g'ri javob.\n"
-        f"To'g'ri javob: {correct_ans_display}\n"
-        f"Sizga 100 ball berildi! 🎯\n\n"
-        f"{format_scores_text(scores, title='📊 Joriy reyting:')}",
+        "😇😇 TO'G'RI 😇😇\n"
+        f"🕯 {correct_ans_display}\n\n"
+        f"{winner_mention} sizga 100 ball berildi\n"
+        f"{format_scores_text(scores, title='Ayni vaqtdagi natijalar 📊:', mention_all=False, winner_id=user_id)}",
         parse_mode=ParseMode.HTML,
     )
 
