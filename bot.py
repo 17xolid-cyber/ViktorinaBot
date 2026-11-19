@@ -32,10 +32,12 @@ chat_access = {}
 pending_receipts = {}
 
 TARIFFS = {
-    "1m": {"label": "1 oyga", "days": 30, "price": "3 000 so'm"},
-    "3m": {"label": "3 oyga", "days": 90, "price": "8 000 so'm"},
-    "6m": {"label": "6 oyga", "days": 180, "price": "15 000 so'm"},
-    "1y": {"label": "1 yilga", "days": 365, "price": "24 000 so'm"},
+    "10d": {"label": "10 kunga", "days": 10, "price": "9 000 so'm"},
+    "1m": {"label": "1 oyga", "days": 30, "price": "29 000 so'm"},
+    "3m": {"label": "3 oyga", "days": 90, "price": "89 000 so'm"},
+    "6m": {"label": "6 oyga", "days": 180, "price": "169 000 so'm"},
+    "1y": {"label": "1 yilga", "days": 365, "price": "249 000 so'm"},
+    "life": {"label": "1 umrlikka", "days": None, "price": "499 000 so'm"},
 }
 
 CYR_TO_LAT = {
@@ -331,18 +333,26 @@ def build_tariffs_keyboard(target_chat_id: int | None) -> InlineKeyboardMarkup:
       inline_keyboard=[
           [
               InlineKeyboardButton(
-                  text="1 oyga", callback_data=f"tar:1m:{cid_part}"
+                  text="10 kunga", callback_data=f"tar:10d:{cid_part}"
               ),
               InlineKeyboardButton(
-                  text="3 oyga", callback_data=f"tar:3m:{cid_part}"
+                  text="1 oyga", callback_data=f"tar:1m:{cid_part}"
               ),
           ],
           [
               InlineKeyboardButton(
-                  text="6 oyga", callback_data=f"tar:6m:{cid_part}"
+                  text="3 oyga", callback_data=f"tar:3m:{cid_part}"
               ),
               InlineKeyboardButton(
+                  text="6 oyga", callback_data=f"tar:6m:{cid_part}"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
                   text="1 yilga", callback_data=f"tar:1y:{cid_part}"
+              ),
+              InlineKeyboardButton(
+                  text="1 umrlikka", callback_data=f"tar:life:{cid_part}"
               ),
           ],
       ]
@@ -379,12 +389,21 @@ def format_tariffs_text(target_chat_id: int | None) -> str:
   return (
       "Botdan foydalanish uchun to'lov qilish zarur! Iltimos, quyidagi"
       f" tariflardan birini tanlang!\n{group_line}"
-      "1 oy uchun - 3 000 so'm\n"
-      "3 oy uchun - 8 000 so'm\n"
-      "6 oy uchun - 15 000 so'm\n"
-      "1 yil uchun - 24 000 so'm!\n\n"
+      "10 kun uchun - 9 000 so'm\n"
+      "1 oy uchun - 29 000 so'm\n"
+      "3 oy uchun - 89 000 so'm\n"
+      "6 oy uchun - 169 000 so'm\n"
+      "1 yil uchun - 249 000 so'm\n"
+      "1 umrlik uchun - 499 000 so'm!\n\n"
       "Aktivlashtirmoqchi bo'lgan muddatingizni tanlang 👇"
   )
+
+
+def build_activate_command(target_cid: int, days: int | None) -> str:
+  cid_str = str(target_cid) if target_cid != 0 else "<guruh_id>"
+  if days is not None:
+    return f"/faollashtir {cid_str} {days}"
+  return f"/faollashtir {cid_str}"
 
 
 def load_state() -> dict:
@@ -649,11 +668,9 @@ async def cb_select_tariff(callback: types.CallbackQuery):
   )
 
   if ADMIN_ID:
-    activate_cmd = (
-        f"/faollashtir {target_cid} {tariff['days']}"
-        if target_cid != 0
-        else f"/faollashtir <guruh_id> {tariff['days']}"
-    )
+    days_val = tariff["days"]
+    days_info = f"{days_val} kun" if days_val is not None else "Cheksiz"
+    activate_cmd = build_activate_command(target_cid, days_val)
     try:
       await bot.send_message(
           chat_id=ADMIN_ID,
@@ -662,7 +679,7 @@ async def cb_select_tariff(callback: types.CallbackQuery):
               f"Foydalanuvchi: {buyer_mention}\n"
               f"Guruh ID: <code>{target_cid}</code>\n"
               f"Tarif: <b>{html.escape(tariff['label'])}</b>"
-              f" ({html.escape(tariff['price'])}, {tariff['days']} kun)\n\n"
+              f" ({html.escape(tariff['price'])}, {days_info})\n\n"
               f"Faollashtirish buyrug'i:\n<code>{activate_cmd}</code>"
           ),
           parse_mode=ParseMode.HTML,
@@ -682,7 +699,9 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
   if len(args) < 1:
     await message.answer(
         "Foydalanish: <code>/faollashtir <chat_id> [kun]</code>\n"
-        "Masalan: <code>/faollashtir -1001234567890 30</code>",
+        "Masalan: <code>/faollashtir -1001234567890 30</code>\n"
+        "Cheksiz muddat uchun kun yozmang: <code>/faollashtir"
+        " -1001234567890</code>",
         parse_mode=ParseMode.HTML,
     )
     return
@@ -851,11 +870,15 @@ async def handle_payment_photo(message: types.Message):
     return
   info = pending_receipts.pop(message.from_user.id, None)
   target_cid = info["chat_id"] if info else 0
-  tariff_text = (
-      f"{info['label']} ({info['price']}, {info['days']} kun)"
-      if info
-      else "Ko'rsatilmagan"
-  )
+  if info:
+    days_label = (
+        f"{info['days']} kun" if info["days"] is not None else "Cheksiz"
+    )
+    tariff_text = f"{info['label']} ({info['price']}, {days_label})"
+    activate_cmd = build_activate_command(target_cid, info["days"])
+  else:
+    tariff_text = "Ko'rsatilmagan"
+    activate_cmd = build_activate_command(target_cid, 30)
 
   await message.answer(
       "✅ Chek/rasm qabul qilindi! Admin tekshirib, guruhni faollashtiradi."
@@ -868,14 +891,6 @@ async def handle_payment_photo(message: types.Message):
             "name": get_display_name(message.from_user),
             "username": message.from_user.username or "",
         },
-    )
-    activate_cmd = (
-        f"/faollashtir {target_cid} {info['days']}"
-        if info and target_cid != 0
-        else (
-            f"/faollashtir {target_cid if target_cid != 0 else '<guruh_id>'}"
-            f" {info['days'] if info else 30}"
-        )
     )
     try:
       await bot.send_photo(
