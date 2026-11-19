@@ -185,6 +185,16 @@ def format_scores_text(
   return "\n".join(lines)
 
 
+def format_question_text(question_text: str) -> str:
+  safe_q = html.escape(str(question_text).strip())
+  return (
+      "🌸 🌸  𝚂 𝙰 𝚅 𝙾 𝙻  🌸 🌸\n\n"
+      f"{safe_q}\n\n"
+      "P.s: Agarda savolga javob topa olmasangiz /next buyrug'i yordamida"
+      " keyingi savolga o'tishingiz mumkin."
+  )
+
+
 def load_state() -> dict:
   """Servis uyg'onganda yoki qayta ishga tushganda o'yin holatini tiklaydi."""
   if not os.path.exists(STATE_FILE):
@@ -291,7 +301,10 @@ async def send_question(
   next_q = pick_next_question(questions, chat_game.get("current_question"))
   chat_game["current_question"] = next_q
   save_state()
-  await message.answer(f"❓ Yangi savol:\n\n{next_q['question']}")
+  await message.answer(
+      format_question_text(next_q["question"]),
+      parse_mode=ParseMode.HTML,
+  )
 
 
 async def is_user_admin(message: types.Message) -> bool:
@@ -312,16 +325,16 @@ async def is_user_admin(message: types.Message) -> bool:
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
   await message.answer(
-      "Assalomu alaykum! Diniy viktorina botiga xush kelibsiz.\n"
+      "Assalomu alaykum! Diniy viktorina botiga xush kelibsiz.\n\n"
       "Buyruqlar:\n"
-      "• /quiz — yangi savol berish\n"
+      "• /next — yangi savol berish yoki keyingi savolga o'tish\n"
       "• /score — joriy reytingni ko'rish\n"
       "• /end — reytingni yakunlash (faqat adminlar uchun)"
   )
 
 
-@dp.message(Command("quiz"))
-async def cmd_quiz(message: types.Message):
+@dp.message(Command("next"))
+async def cmd_next(message: types.Message):
   questions = load_questions()
   if not questions:
     await message.answer("Hozircha questions.json faylida savollar yo'q!")
@@ -363,7 +376,10 @@ async def cmd_end(message: types.Message):
       title="🏁 Viktorina reytingi yakunlandi! Yakuniy natijalar:",
       mention_all=True,
   )
-  text += "\n\n🔄 Reyting tozalandi. Yangi o'yinni /quiz orqali boshlashingiz mumkin!"
+  text += (
+      "\n\n🔄 Reyting tozalandi. Yangi o'yinni /next orqali boshlashingiz"
+      " mumkin!"
+  )
 
   chat_game["scores"] = {}
   chat_game["current_question"] = None
@@ -400,7 +416,9 @@ async def check_answer(message: types.Message):
     user_id = message.from_user.id if message.from_user else 0
     user_name = get_display_name(message.from_user)
     username = (
-        message.from_user.username if message.from_user and message.from_user.username else ""
+        message.from_user.username
+        if message.from_user and message.from_user.username
+        else ""
     )
     scores = chat_game["scores"]
 
@@ -412,7 +430,12 @@ async def check_answer(message: types.Message):
         scores[user_id]["username"] = username
 
     scores[user_id]["score"] += 100
-    correct_ans_display = html.escape(str(current_question.get("answer", "")))
+    raw_disp = (
+        raw_answer[0]
+        if isinstance(raw_answer, list) and raw_answer
+        else raw_answer
+    )
+    correct_ans_display = html.escape(str(raw_disp))
     safe_user_name = html.escape(user_name)
 
     await message.reply(
