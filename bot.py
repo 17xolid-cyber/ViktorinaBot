@@ -83,7 +83,7 @@ HONORIFIC_PATTERNS = [
     r"\bpayg'?ambar(?:i)?(?:imiz)?\b",
     r"\broziyallohu[\s\-]*anhu(?:mo)?\b",
     r"\brodiyallohu[\s\-]*anhu(?:mo)?\b",
-    r"\broziallohu[\s\-]*anhu(?:mo)?\b",
+    r"\broziyallohu[\s\-]*anhu(?:mo)?\b",
     r"\brodiallohu[\s\-]*anhu(?:mo)?\b",
     r"\broziyallohu[\s\-]*anho\b",
     r"\brodiyallohu[\s\-]*anho\b",
@@ -347,16 +347,16 @@ async def cmd_next(message: types.Message):
   await send_question(message, chat_game, questions)
 
 
-@dp.message(Command("score"))
-async def cmd_score(message: types.Message):
+@dp.message(Command("reyting"))
+async def cmd_reyting(message: types.Message):
   chat_game = get_chat_game(message.chat.id)
   await message.answer(
       format_scores_text(chat_game["scores"]), parse_mode=ParseMode.HTML
   )
 
 
-@dp.message(Command("end"))
-async def cmd_end(message: types.Message):
+@dp.message(Command("tugatish"))
+async def cmd_tugatish(message: types.Message):
   if not await is_user_admin(message):
     await message.answer(
         "⛔ Reytingni faqat guruh administratorlari yakunlashi mumkin."
