@@ -1,24 +1,40 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 import html
 import json
 import os
 import random
 import re
 from aiohttp import web
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.enums import ParseMode
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
+ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 0
+BOT_USERNAME = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 STATE_FILE = "games_state.json"
 TEMP_STATE_FILE = "games_state.tmp"
+ACCESS_FILE = "chats_access.json"
+TEMP_ACCESS_FILE = "chats_access.tmp"
+
 games = {}
+chat_access = {}
+
+TARIFFS = {
+    "1m": {"label": "1 oyga", "days": 30, "price": "3 000 so'm"},
+    "3m": {"label": "3 oyga", "days": 90, "price": "8 000 so'm"},
+    "6m": {"label": "6 oyga", "days": 180, "price": "15 000 so'm"},
+    "1y": {"label": "1 yilga", "days": 365, "price": "24 000 so'm"},
+}
 
 CYR_TO_LAT = {
     "а": "a",
@@ -198,6 +214,156 @@ def format_question_text(question_text: str) -> str:
   )
 
 
+def load_access() -> dict:
+  if not os.path.exists(ACCESS_FILE):
+    return {}
+  try:
+    with open(ACCESS_FILE, "r", encoding="utf-8") as f:
+      raw = json.load(f)
+    if not isinstance(raw, dict):
+      return {}
+    restored = {}
+    for cid_str, info in raw.items():
+      if isinstance(info, dict):
+        restored[int(cid_str)] = {
+            "active": bool(info.get("active", False)),
+            "expires_at": info.get("expires_at"),
+            "title": str(info.get("title") or ""),
+        }
+    return restored
+  except (json.JSONDecodeError, OSError, ValueError):
+    return {}
+
+
+def save_access() -> None:
+  serializable = {
+      str(cid): {
+          "active": bool(info.get("active", False)),
+          "expires_at": info.get("expires_at"),
+          "title": str(info.get("title") or ""),
+      }
+      for cid, info in chat_access.items()
+  }
+  try:
+    with open(TEMP_ACCESS_FILE, "w", encoding="utf-8") as f:
+      json.dump(serializable, f, ensure_ascii=False, indent=2)
+      f.flush()
+      os.fsync(f.fileno())
+    os.replace(TEMP_ACCESS_FILE, ACCESS_FILE)
+  except OSError:
+    pass
+
+
+def is_group_active(chat_id: int) -> bool:
+  info = chat_access.get(chat_id)
+  if not info or not info.get("active"):
+    return False
+  expires_at = info.get("expires_at")
+  if not expires_at:
+    return True
+  try:
+    exp_dt = datetime.fromisoformat(expires_at)
+    if exp_dt.tzinfo is None:
+      exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) >= exp_dt:
+      info["active"] = False
+      save_access()
+      return False
+    return True
+  except ValueError:
+    return False
+
+
+def get_expiry_text(chat_id: int) -> str:
+  info = chat_access.get(chat_id)
+  if not info or not info.get("active"):
+    return "Faol emas"
+  expires_at = info.get("expires_at")
+  if not expires_at:
+    return "Cheksiz"
+  try:
+    exp_dt = datetime.fromisoformat(expires_at)
+    if exp_dt.tzinfo is None:
+      exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+    return exp_dt.astimezone(timezone(timedelta(hours=5))).strftime(
+        "%Y-%m-%d %H:%M"
+    )
+  except ValueError:
+    return str(expires_at)
+
+
+async def get_bot_username() -> str:
+  global BOT_USERNAME
+  if BOT_USERNAME:
+    return BOT_USERNAME
+  me = await bot.get_me()
+  BOT_USERNAME = (me.username or "").lstrip("@")
+  return BOT_USERNAME
+
+
+async def build_activation_keyboard(chat_id: int) -> InlineKeyboardMarkup:
+  username = await get_bot_username()
+  url = (
+      f"https://t.me/{username}?start=pay_{chat_id}"
+      if username
+      else "https://t.me"
+  )
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="Aktivlashtirish", url=url)]
+      ]
+  )
+
+
+async def send_sleeping_group_message(message: types.Message) -> None:
+  kb = await build_activation_keyboard(message.chat.id)
+  await message.reply(
+      "Bot uxlayabdi. Uyg'onishi uchun to'lov qilish kerak.",
+      reply_markup=kb,
+  )
+
+
+def build_tariffs_keyboard(target_chat_id: int | None) -> InlineKeyboardMarkup:
+  cid_part = str(target_chat_id) if target_chat_id is not None else "0"
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="1 oyga", callback_data=f"tar:1m:{cid_part}"
+              ),
+              InlineKeyboardButton(
+                  text="3 oyga", callback_data=f"tar:3m:{cid_part}"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="6 oyga", callback_data=f"tar:6m:{cid_part}"
+              ),
+              InlineKeyboardButton(
+                  text="1 yilga", callback_data=f"tar:1y:{cid_part}"
+              ),
+          ],
+      ]
+  )
+
+
+def format_tariffs_text(target_chat_id: int | None) -> str:
+  group_line = (
+      f"Guruh ID: <code>{target_chat_id}</code>\n\n"
+      if target_chat_id is not None
+      else ""
+  )
+  return (
+      "Botdan foydalanish uchun to'lov qilish zarur! Iltimos, quyidagi"
+      f" tariflardan birini tanlang!\n{group_line}"
+      "1 oy uchun - 3 000 so'm\n"
+      "3 oy uchun - 8 000 so'm\n"
+      "6 oy uchun - 15 000 so'm\n"
+      "1 yil uchun - 24 000 so'm!\n\n"
+      "Aktivlashtirmoqchi bo'lgan muddatingizni tanlang 👇"
+  )
+
+
 def load_state() -> dict:
   """Servis uyg'onganda yoki qayta ishga tushganda o'yin holatini tiklaydi."""
   if not os.path.exists(STATE_FILE):
@@ -326,7 +492,29 @@ async def is_user_admin(message: types.Message) -> bool:
 
 
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, command: CommandObject):
+  args = (command.args or "").strip()
+
+  if message.chat.type != "private":
+    if not is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
+
+  if message.chat.type == "private" and args.startswith("pay_"):
+    raw_cid = args.replace("pay_", "", 1).strip()
+    target_cid = None
+    try:
+      target_cid = int(raw_cid)
+    except ValueError:
+      target_cid = None
+
+    await message.answer(
+        format_tariffs_text(target_cid),
+        reply_markup=build_tariffs_keyboard(target_cid),
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
   await message.answer(
       "Assalomu alaykum! Diniy viktorina botiga xush kelibsiz.\n\n"
       "Buyruqlar:\n"
@@ -336,8 +524,185 @@ async def cmd_start(message: types.Message):
   )
 
 
+@dp.callback_query(F.data.startswith("tar:"))
+async def cb_select_tariff(callback: types.CallbackQuery):
+  parts = (callback.data or "").split(":")
+  if len(parts) != 3:
+    await callback.answer()
+    return
+
+  _, code, cid_str = parts
+  tariff = TARIFFS.get(code)
+  if not tariff:
+    await callback.answer("Noto'g'ri tarif", show_alert=True)
+    return
+
+  try:
+    target_cid = int(cid_str)
+  except ValueError:
+    target_cid = 0
+
+  user = callback.from_user
+  buyer_mention = format_mention_html(
+      user.id if user else 0,
+      {
+          "name": get_display_name(user),
+          "username": user.username if user and user.username else "",
+      },
+  )
+
+  cid_info = (
+      f"Guruh ID: <code>{target_cid}</code>\n"
+      if target_cid != 0
+      else "Guruh ID: <i>ko'rsatilmagan</i>\n"
+  )
+
+  await callback.message.answer(
+      f"✅ Siz <b>{html.escape(tariff['label'])}</b>"
+      f" ({html.escape(tariff['price'])}) tarifini tanladingiz.\n"
+      f"{cid_info}"
+      f"Muddat: <b>{tariff['days']} kun</b>\n\n"
+      "To'lovni amalga oshirgach, admin bilan bog'laning yoki chekni"
+      " yuboring. Tasdiqlangach, guruh darhol faollashtiriladi.",
+      parse_mode=ParseMode.HTML,
+  )
+
+  if ADMIN_ID:
+    activate_cmd = (
+        f"/faollashtir {target_cid} {tariff['days']}"
+        if target_cid != 0
+        else f"/faollashtir <guruh_id> {tariff['days']}"
+    )
+    try:
+      await bot.send_message(
+          chat_id=ADMIN_ID,
+          text=(
+              "💳 <b>Yangi tarif tanlandi!</b>\n\n"
+              f"Foydalanuvchi: {buyer_mention}\n"
+              f"{cid_info}"
+              f"Tarif: <b>{html.escape(tariff['label'])}</b>"
+              f" ({html.escape(tariff['price'])}, {tariff['days']} kun)\n\n"
+              f"Faollashtirish buyrug'i:\n<code>{activate_cmd}</code>"
+          ),
+          parse_mode=ParseMode.HTML,
+      )
+    except Exception:
+      pass
+
+  await callback.answer()
+
+
+@dp.message(Command("faollashtir"))
+async def cmd_faollashtir(message: types.Message, command: CommandObject):
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  args = (command.args or "").strip().split()
+  if len(args) < 1:
+    await message.answer(
+        "Foydalanish: <code>/faollashtir <chat_id> [kun]</code>\n"
+        "Masalan: <code>/faollashtir -1001234567890 30</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  try:
+    target_cid = int(args[0])
+  except ValueError:
+    await message.answer("Chat ID noto'g'ri formatda.")
+    return
+
+  days = None
+  if len(args) >= 2:
+    try:
+      days = int(args[1])
+      if days <= 0:
+        days = None
+    except ValueError:
+      days = None
+
+  expires_iso = None
+  if days is not None:
+    exp_dt = datetime.now(timezone.utc) + timedelta(days=days)
+    expires_iso = exp_dt.isoformat()
+
+  existing = chat_access.get(target_cid, {})
+  chat_access[target_cid] = {
+      "active": True,
+      "expires_at": expires_iso,
+      "title": existing.get("title", ""),
+  }
+  save_access()
+
+  await message.answer(
+      f"✅ Guruh faollashtirildi!\n"
+      f"Chat ID: <code>{target_cid}</code>\n"
+      f"Amal qilish muddati: <b>{html.escape(get_expiry_text(target_cid))}</b>",
+      parse_mode=ParseMode.HTML,
+  )
+
+
+@dp.message(Command("ochirish"))
+async def cmd_ochirish(message: types.Message, command: CommandObject):
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  args = (command.args or "").strip().split()
+  if not args:
+    await message.answer(
+        "Foydalanish: <code>/ochirish <chat_id></code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  try:
+    target_cid = int(args[0])
+  except ValueError:
+    await message.answer("Chat ID noto'g'ri formatda.")
+    return
+
+  if target_cid in chat_access:
+    chat_access[target_cid]["active"] = False
+    save_access()
+  await message.answer(
+      f"🔒 Guruh o'chirildi: <code>{target_cid}</code>", parse_mode=ParseMode.HTML
+  )
+
+
+@dp.message(Command("holat"))
+async def cmd_holat(message: types.Message, command: CommandObject):
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  args = (command.args or "").strip().split()
+  if not args:
+    await message.answer(
+        "Foydalanish: <code>/holat <chat_id></code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  try:
+    target_cid = int(args[0])
+  except ValueError:
+    await message.answer("Chat ID noto'g'ri formatda.")
+    return
+
+  active = is_group_active(target_cid)
+  await message.answer(
+      f"Chat ID: <code>{target_cid}</code>\n"
+      f"Holat: <b>{'Faol' if active else 'Faol emas'}</b>\n"
+      f"Muddat: <b>{html.escape(get_expiry_text(target_cid))}</b>",
+      parse_mode=ParseMode.HTML,
+  )
+
+
 @dp.message(Command("next"))
 async def cmd_next(message: types.Message):
+  if message.chat.type != "private" and not is_group_active(message.chat.id):
+    await send_sleeping_group_message(message)
+    return
+
   questions = load_questions()
   if not questions:
     await message.answer("Hozircha questions.json faylida savollar yo'q!")
@@ -349,6 +714,10 @@ async def cmd_next(message: types.Message):
 
 @dp.message(Command("reyting"))
 async def cmd_reyting(message: types.Message):
+  if message.chat.type != "private" and not is_group_active(message.chat.id):
+    await send_sleeping_group_message(message)
+    return
+
   chat_game = get_chat_game(message.chat.id)
   await message.answer(
       format_scores_text(chat_game["scores"]), parse_mode=ParseMode.HTML
@@ -357,6 +726,10 @@ async def cmd_reyting(message: types.Message):
 
 @dp.message(Command("tugatish"))
 async def cmd_tugatish(message: types.Message):
+  if message.chat.type != "private" and not is_group_active(message.chat.id):
+    await send_sleeping_group_message(message)
+    return
+
   if not await is_user_admin(message):
     await message.answer(
         "⛔ Reytingni faqat guruh administratorlari yakunlashi mumkin."
@@ -394,6 +767,9 @@ async def cmd_tugatish(message: types.Message):
 @dp.message()
 async def check_answer(message: types.Message):
   if not message.text or message.text.startswith("/"):
+    return
+
+  if message.chat.type != "private" and not is_group_active(message.chat.id):
     return
 
   chat_game = get_chat_game(message.chat.id)
@@ -472,8 +848,9 @@ async def start_web_server():
 
 
 async def main():
-  global games
+  global games, chat_access
   games = load_state()
+  chat_access = load_access()
   await start_web_server()
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
