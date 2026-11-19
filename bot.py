@@ -734,22 +734,54 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
   }
   save_access()
 
-  group_notice = (
-      f"Bot {days} kun davomida uxlamasdan xizmatingizda!"
-      if days is not None
-      else "Bot bir umr davomida uxlamasdan xizmatingizda!"
+  admin_mention = format_mention_html(
+      message.from_user.id,
+      {
+          "name": get_display_name(message.from_user),
+          "username": message.from_user.username or "",
+      },
   )
-  group_sent = True
+  if days is not None:
+    group_notice = (
+        f"Botni {admin_mention} {days} kunga faollashtirdi. Bot {days} kun"
+        " davomida uxlamasdan xizmatingizda!"
+    )
+  else:
+    group_notice = (
+        f"Botni {admin_mention} 1 umrlikka faollashtirdi. Bot bir umr"
+        " davomida uxlamasdan xizmatingizda!"
+    )
+
+  group_sent = False
+  group_pinned = False
   try:
-    await bot.send_message(chat_id=target_cid, text=group_notice)
+    sent_msg = await bot.send_message(
+        chat_id=target_cid, text=group_notice, parse_mode=ParseMode.HTML
+    )
+    group_sent = True
+    try:
+      await bot.pin_chat_message(
+          chat_id=target_cid,
+          message_id=sent_msg.message_id,
+          disable_notification=True,
+      )
+      group_pinned = True
+    except Exception:
+      group_pinned = False
   except Exception:
     group_sent = False
 
-  extra_status = (
-      "\n📩 Guruhga xabar yuborildi."
-      if group_sent
-      else "\n⚠️ Guruhga xabar yuborib bo'lmadi (bot guruhda bormi tekshiring)."
-  )
+  if group_sent and group_pinned:
+    extra_status = "\n📩 Guruhga xabar yuborildi va qadab (pin) qo'yildi."
+  elif group_sent:
+    extra_status = (
+        "\n📩 Guruhga xabar yuborildi, lekin qadab bo'lmadi (botga pin huquqi"
+        " berilganini tekshiring)."
+    )
+  else:
+    extra_status = (
+        "\n⚠️ Guruhga xabar yuborib bo'lmadi (bot guruhda bormi tekshiring)."
+    )
 
   await message.answer(
       f"✅ Guruh faollashtirildi!\n"
