@@ -1498,5 +1498,489 @@
   {
     "question": "Falaq surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
     "answer": "113"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning amakilari va musulmonlarni qattiq himoya qilgan zot kim?",
+    "answer": "Abu Tolib"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning 'Haq bilan botilni ajratuvchi' laqabli sahobalari kim?",
+    "answer": "Umar"
+  },
+  {
+    "question": "Madinaga birinchi hijrat qilgan sahobalardan biri, islomga da'vat qilish uchun yuborilgan zot kim?",
+    "answer": "Mus'ab ibn Umayr"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning shoirlari bo'lgan ansoriy sahoba kim?",
+    "answer": "Hasson ibn Sobit"
+  },
+  {
+    "question": "Savr g'orida Rasululloh sollallohu alayhi vasallamga hamrohlik qilgan siddiq sahoba kim?",
+    "answer": "Abu Bakr"
+  },
+  {
+    "question": "Hijrat kechasi Rasululloh sollallohu alayhi vasallamning o'rinlarida yotgan sahoba kim?",
+    "answer": "Ali"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning birinchi muazzinlari kim edi?",
+    "answer": "Bilol"
+  },
+  {
+    "question": "Xandaq g'azotida xandaq qazish taklifini bergan sahoba kim?",
+    "answer": "Salmon Forsiy"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning sirlari saqlovchisi deb tanilgan sahoba kim?",
+    "answer": "Huzayfa ibn Yamon"
+  },
+  {
+    "question": "Eng ko'p hadis rivoyat qilgan sahoba kim?",
+    "answer": "Abu Hurayra"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning xizmatlarida ko'p yillar bo'lgan sahoba kim?",
+    "answer": "Anas ibn Molik"
+  },
+  {
+    "question": "Qur'onni jamoat oldida ilk bor oshkora o'qigan sahobalardan biri kim?",
+    "answer": "Abdulloh ibn Mas'ud"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning 'Ummatning omonati' deb atagan sahobalari kim?",
+    "answer": "Abu Ubayda"
+  },
+  {
+    "question": "Xolid ibn Validga 'Sayfulloh' laqabini bergan zot kim?",
+    "answer": "Muhammad"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning 'Asadulloh' laqabli amakilari kim?",
+    "answer": "Hamza"
+  },
+  {
+    "question": "Islomda birinchi shahid bo'lgan ayol sahoba kim?",
+    "answer": "Sumayya"
+  },
+  {
+    "question": "Sumayya roziyallohu anhoning turmush o'rtoqlari, ilk shahid sahobalardan biri kim?",
+    "answer": "Yosir"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning kenja qizlari kim?",
+    "answer": "Fotima"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning nabiralari Husaynning akalari kim?",
+    "answer": "Hasan"
+  },
+  {
+    "question": "Hudaybiya sulhida Quraysh elchisi sifatida borib, ushlab qolingan sahoba kim?",
+    "answer": "Usmon"
+  },
+  {
+    "question": "Qur'onda nomi zikr etilgan yagona sahoba kim?",
+    "answer": "Zayd ibn Horisa"
+  },
+  {
+    "question": "Mu'ta g'azotida ketma-ket bayroqni olgan uchinchi sarkarda kim?",
+    "answer": "Abdulloh ibn Ravoha"
+  },
+  {
+    "question": "Habashistonga hijrat qilgan sahobalar nomidan Najoshiy huzurida so'zlagan sahoba kim?",
+    "answer": "Ja'far"
+  },
+  {
+    "question": "Badr g'azotida musulmonlar safidan ilk o'q uzgan sahoba kim?",
+    "answer": "Sa'd ibn Abu Vaqqos"
+  },
+  {
+    "question": "Eng ko'p hadis rivoyat qilgan ayol sahoba kim?",
+    "answer": "Oysha"
+  },
+  {
+    "question": "Uhud g'azotida Rasululloh sollallohu alayhi vasallamni himoya qilgan ayol sahobalardan biri kim?",
+    "answer": "Nusayba"
+  },
+  {
+    "question": "Xaybar qal'alarini fath etishda bayroq kimga topshirildi?",
+    "answer": "Ali"
+  },
+  {
+    "question": "Makka davrida musulmonlar yashirin yig'ilgan uyi bilan mashhur sahoba kim?",
+    "answer": "Arqam"
+  },
+  {
+    "question": "Aqaba bay'atida ishtirok etgan madinalik qabilalardan biri qaysi?",
+    "answer": "Avs"
+  },
+  {
+    "question": "Aqaba bay'atida ishtirok etgan ikkinchi madinalik qabila qaysi?",
+    "answer": "Xazraj"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning birinchi zavjalari kim?",
+    "answer": "Xadicha"
+  },
+  {
+    "question": "Islomni birinchi qabul qilgan ayol kim?",
+    "answer": "Xadicha"
+  },
+  {
+    "question": "Islomni birinchi qabul qilgan erkak sahoba kim?",
+    "answer": "Abu Bakr"
+  },
+  {
+    "question": "Islomni birinchi qabul qilgan yosh bola sahoba kim?",
+    "answer": "Ali"
+  },
+  {
+    "question": "Madinada muhojirlar bilan ansorlarni kim birodarlashtirdi?",
+    "answer": "Muhammad"
+  },
+  {
+    "question": "Sahobalar orasida ilmga ishtiyoqi bilan tanilgan Abdulloh ibn Abbos kimning amakivachchasi edi?",
+    "answer": "Muhammad"
+  },
+  {
+    "question": "Madinada Rasululloh sollallohu alayhi vasallamning tuyalari cho'kkan joy hovlisida kimning uyi bo'lgan?",
+    "answer": "Abu Ayyub Ansoriy"
+  },
+  {
+    "question": "Savr g'orida Rasululloh sollallohu alayhi vasallam va Abu Bakrga xabar yetkazib turgan o'g'il kim?",
+    "answer": "Abdulloh"
+  },
+  {
+    "question": "Savr g'orida oziq-ovqat olib borgan Abu Bakrning qizlari kim?",
+    "answer": "Asmo"
+  },
+  {
+    "question": "Hijrat yo'lida yo'l boshlovchi bo'lgan tajribali kishi kim edi?",
+    "answer": "Abdulloh ibn Urayqit"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallam tug'ilgan yil qanday nomlanadi?",
+    "answer": "Fil"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning otalari kim?",
+    "answer": "Abdulloh"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning onalari kim?",
+    "answer": "Omina"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning bobolari kim?",
+    "answer": "Abdulmuttalib"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamga sut bergan emizuvchi onalari kim?",
+    "answer": "Halima"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning onalari vafot etgan joy qayer?",
+    "answer": "Abvo"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamga payg'ambarlik necha yoshda berildi?",
+    "answer": "40"
+  },
+  {
+    "question": "Birinchi vahiy qaysi g'orda nozil bo'ldi?",
+    "answer": "Hiro"
+  },
+  {
+    "question": "Birinchi vahiyda farishta Jabroil alayhissalom qanday so'z bilan buyruq berdilar?",
+    "answer": "O'qi"
+  },
+  {
+    "question": "Makka davri qancha vaqt davom etdi (taxminan 13 yil)?",
+    "answer": "13"
+  },
+  {
+    "question": "Madina davri qancha vaqt davom etdi (taxminan 10 yil)?",
+    "answer": "10"
+  },
+  {
+    "question": "Abu Tolib va Xadicha onamiz vafot etgan yil qanday nomlanadi?",
+    "answer": "Mahzunlik"
+  },
+  {
+    "question": "Toif safarida Rasululloh sollallohu alayhi vasallamga kim hamroh bo'ldi?",
+    "answer": "Zayd ibn Horisa"
+  },
+  {
+    "question": "Isro va Me'roj hodisasi qaysi shahardan boshlandi?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Isro kechasida Makka masjididan qaysi masjidga borildi?",
+    "answer": "Aqso"
+  },
+  {
+    "question": "Hijratda Rasululloh sollallohu alayhi vasallam uch kecha yashiringan g'or qaysi?",
+    "answer": "Savr"
+  },
+  {
+    "question": "Madinaga yetib borgach qurilgan birinchi masjid qaysi?",
+    "answer": "Qubo"
+  },
+  {
+    "question": "Hijratdan oldin Madinaning nomi nima edi?",
+    "answer": "Yasrib"
+  },
+  {
+    "question": "Madinadagi Rasululloh sollallohu alayhi vasallamning masjidlari qanday ataladi?",
+    "answer": "Nabaviy"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallamning Xadicha onamizdan bo'lmagan farzandlari kim?",
+    "answer": "Ibrohim"
+  },
+  {
+    "question": "Makka qaysi hijriy yilda fath etildi?",
+    "answer": "8"
+  },
+  {
+    "question": "Vidolashuv haji qaysi hijriy yilda bo'ldi?",
+    "answer": "10"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallam qaysi hijriy yilda vafot etdilar?",
+    "answer": "11"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallam necha yoshda vafot etdilar?",
+    "answer": "63"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallam qaysi shaharda dafn etildilar?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Ka'ba ta'mirida Hajarul Asvadni qo'yish bahsini Rasululloh sollallohu alayhi vasallam nimaning yordamida hal qildilar?",
+    "answer": "Chopon"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning 'Al-Amin' laqabi nimani bildiradi?",
+    "answer": "Ishonchli"
+  },
+  {
+    "question": "Musulmonlarga panoh bergan Habashiston podshohi unvoni nima edi?",
+    "answer": "Najoshiy"
+  },
+  {
+    "question": "Hudaybiya sulhi nechanchi hijriy yilda bo'ldi?",
+    "answer": "6"
+  },
+  {
+    "question": "Vidolashuv hajida xutba o'qilgan tog' qaysi?",
+    "answer": "Arafot"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallamning kunyalari nima edi?",
+    "answer": "Abul Qosim"
+  },
+  {
+    "question": "Madinaga kirib kelganlarida kuylangan mashhur qo'shiq qanday boshlanadi?",
+    "answer": "Tola'al badru"
+  },
+  {
+    "question": "Birinchi Aqaba bay'atida necha kishi bay'at bergan edi?",
+    "answer": "12"
+  },
+  {
+    "question": "Ikkinchi Aqaba bay'atida necha kishi ishtirok etgan edi?",
+    "answer": "73"
+  },
+  {
+    "question": "Birinchi inson va birinchi payg'ambar kim?",
+    "answer": "Odam"
+  },
+  {
+    "question": "Odam alayhissalomning juftlari kim?",
+    "answer": "Havvo"
+  },
+  {
+    "question": "Odam alayhissalomning qurbonlik keltirgan o'g'illaridan biri kim?",
+    "answer": "Hobil"
+  },
+  {
+    "question": "Ulkan to'fondan kema orqali najot topgan payg'ambar kim?",
+    "answer": "Nuh"
+  },
+  {
+    "question": "Nuh alayhissalom qavmlarini necha yil da'vat qildilar?",
+    "answer": "950"
+  },
+  {
+    "question": "Nuh alayhissalomning kemasi to'xtagan tog' qaysi?",
+    "answer": "Judiy"
+  },
+  {
+    "question": "Od qavmiga yuborilgan payg'ambar kim?",
+    "answer": "Hud"
+  },
+  {
+    "question": "Samud qavmiga yuborilgan payg'ambar kim?",
+    "answer": "Solih"
+  },
+  {
+    "question": "'Xalilulloh' laqabli ulug' payg'ambar kim?",
+    "answer": "Ibrohim"
+  },
+  {
+    "question": "Zamzam bulog'i paydo bo'lishi bilan bog'liq payg'ambar kim?",
+    "answer": "Ismoil"
+  },
+  {
+    "question": "Ibrohim alayhissalomning Ismoildan keyingi payg'ambar o'g'illari kim?",
+    "answer": "Is'hoq"
+  },
+  {
+    "question": "Is'hoq alayhissalomning o'g'illari, 'Isroil' laqabli payg'ambar kim?",
+    "answer": "Ya'qub"
+  },
+  {
+    "question": "Tush ta'biri ilmi berilgan misrlik payg'ambar kim?",
+    "answer": "Yusuf"
+  },
+  {
+    "question": "Yusuf alayhissalomni sotib olgan misrlik amaldor qanday unvonda edi?",
+    "answer": "Aziz"
+  },
+  {
+    "question": "Lut qavmiga yuborilgan payg'ambar kim?",
+    "answer": "Lut"
+  },
+  {
+    "question": "Madyan ahliga yuborilgan payg'ambar kim?",
+    "answer": "Shuayb"
+  },
+  {
+    "question": "Og'ir sinovni sabr bilan yenggan payg'ambar kim?",
+    "answer": "Ayyub"
+  },
+  {
+    "question": "'Kalimulloh' laqabli payg'ambar kim?",
+    "answer": "Muso"
+  },
+  {
+    "question": "Muso alayhissalomning akalari va yordamchi qilib so'ralgan payg'ambar kim?",
+    "answer": "Horun"
+  },
+  {
+    "question": "Katta baliq qornida bo'lgan payg'ambar kim?",
+    "answer": "Yunus"
+  },
+  {
+    "question": "Zabur nozil bo'lgan va temirni qo'lda yumshatish mo'jizasi berilgan payg'ambar kim?",
+    "answer": "Dovud"
+  },
+  {
+    "question": "Qushlar tilini bilgan va Sulaymon alayhissalomga xabar keltirgan qush qaysi?",
+    "answer": "Hudhud"
+  },
+  {
+    "question": "Saba malikasi kim edi?",
+    "answer": "Bilqis"
+  },
+  {
+    "question": "Ilyos alayhissalomdan keyin kelgan payg'ambar kim?",
+    "answer": "Al-Yasa"
+  },
+  {
+    "question": "Yahyo alayhissalomning otalari bo'lgan payg'ambar kim?",
+    "answer": "Zakariyo"
+  },
+  {
+    "question": "Zakariyo alayhissalomning o'g'illari bo'lgan payg'ambar kim?",
+    "answer": "Yahyo"
+  },
+  {
+    "question": "Beshikda gapirgan va Injil berilgan payg'ambar kim?",
+    "answer": "Iso"
+  },
+  {
+    "question": "Iso alayhissalomning onalari kim?",
+    "answer": "Maryam"
+  },
+  {
+    "question": "Ulul-azm payg'ambarlar nechta?",
+    "answer": "5"
+  },
+  {
+    "question": "Hizr alayhissalom bilan safar qilgan payg'ambar kim?",
+    "answer": "Muso"
+  },
+  {
+    "question": "Badr g'azoti qaysi hijriy yilda bo'ldi?",
+    "answer": "2"
+  },
+  {
+    "question": "Badr g'azoti qaysi oyda bo'lgan?",
+    "answer": "Ramazon"
+  },
+  {
+    "question": "Badr g'azotida musulmonlar soni taxminan necha kishi edi?",
+    "answer": "313"
+  },
+  {
+    "question": "Badr g'azotida mushriklar qo'shiniga kim boshchilik qilgan?",
+    "answer": "Abu Jahl"
+  },
+  {
+    "question": "Uhud g'azoti qaysi hijriy yilda bo'ldi?",
+    "answer": "3"
+  },
+  {
+    "question": "Uhud g'azotida kamonchilar tepaligiga necha kishi qo'yilgan edi?",
+    "answer": "50"
+  },
+  {
+    "question": "Uhud g'azotida shahid bo'lgan ulug' sahoba kim?",
+    "answer": "Hamza"
+  },
+  {
+    "question": "Xandaq g'azoti qaysi hijriy yilda bo'ldi?",
+    "answer": "5"
+  },
+  {
+    "question": "Xandaq g'azotining yana bir nomi nima?",
+    "answer": "Ahzob"
+  },
+  {
+    "question": "Xaybar g'azoti qaysi hijriy yilda bo'ldi?",
+    "answer": "7"
+  },
+  {
+    "question": "Mu'ta g'azoti qaysi hijriy yilda bo'ldi?",
+    "answer": "8"
+  },
+  {
+    "question": "Mu'ta g'azotida qo'shinni omon olib chiqishda mahorat ko'rsatgan sarkarda kim?",
+    "answer": "Xolid ibn Valid"
+  },
+  {
+    "question": "Makka fathidan keyin bo'lib o'tgan g'azot qaysi?",
+    "answer": "Hunayn"
+  },
+  {
+    "question": "Rasululloh sollallohu alayhi vasallam ishtirok etgan eng oxirgi g'azot qaysi?",
+    "answer": "Tabuk"
+  },
+  {
+    "question": "Tabuk g'azoti qaysi hijriy yilda bo'ldi?",
+    "answer": "9"
+  },
+  {
+    "question": "Makka fathi necha kishilik qo'shin bilan amalga oshirildi?",
+    "answer": "10000"
+  },
+  {
+    "question": "Payg'ambarimiz sollallohu alayhi vasallam shaxsan o'zlari boshchilik qilgan yurishlar qanday ataladi?",
+    "answer": "G'azot"
   }
 ]
