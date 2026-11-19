@@ -2,9 +2,9 @@ import asyncio
 import json
 import os
 import random
-from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -136,7 +136,7 @@ def format_scores_text(
 
 
 def load_state() -> dict:
-  """Servis uyg'onganda yoki qayta ishga tushganda o'yin holatini fayldan tiklaydi."""
+  """Servis uyg'onganda yoki qayta ishga tushganda o'yin holatini tiklaydi."""
   if not os.path.exists(STATE_FILE):
     return {}
   try:
@@ -350,13 +350,13 @@ async def check_answer(message: types.Message):
     else:
       scores[user_id]["name"] = user_name
 
-    scores[user_id]["score"] += 1
+    scores[user_id]["score"] += 100
     correct_ans_display = current_question.get("answer", "")
 
     await message.answer(
         f"🎉 Tabriklayman, {user_name}! To'g'ri javob.\n"
         f"To'g'ri javob: {correct_ans_display}\n"
-        f"Sizga 1 ball berildi! 🎯\n\n"
+        f"Sizga 100 ball berildi! 🎯\n\n"
         f"{format_scores_text(scores, title='📊 Joriy reyting:')}"
     )
 
