@@ -1138,5 +1138,365 @@
   {
     "question": "Barcha g'azotlar va siyrat voqealaridan biz qanday xulosa chiqaramiz?",
     "answer": "Sabr va iymon"
+  },
+  {
+    "question": "Fotiha surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Fotiha surasi nechta oyatdan iborat?",
+    "answer": "7"
+  },
+  {
+    "question": "Fotiha surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "1"
+  },
+  {
+    "question": "Baqara surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Baqara surasi nechta oyatdan iborat?",
+    "answer": "286"
+  },
+  {
+    "question": "Baqara surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "2"
+  },
+  {
+    "question": "Oli Imron surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Oli Imron surasi nechta oyatdan iborat?",
+    "answer": "200"
+  },
+  {
+    "question": "Oli Imron surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "3"
+  },
+  {
+    "question": "Niso surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Niso surasi nechta oyatdan iborat?",
+    "answer": "176"
+  },
+  {
+    "question": "Niso surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "4"
+  },
+  {
+    "question": "Moida surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Moida surasi nechta oyatdan iborat?",
+    "answer": "120"
+  },
+  {
+    "question": "Moida surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "5"
+  },
+  {
+    "question": "An'om surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "An'om surasi nechta oyatdan iborat?",
+    "answer": "165"
+  },
+  {
+    "question": "An'om surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "6"
+  },
+  {
+    "question": "Yunus surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Yunus surasi nechta oyatdan iborat?",
+    "answer": "109"
+  },
+  {
+    "question": "Yunus surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "10"
+  },
+  {
+    "question": "Hud surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Hud surasi nechta oyatdan iborat?",
+    "answer": "123"
+  },
+  {
+    "question": "Hud surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "11"
+  },
+  {
+    "question": "Yusuf surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Yusuf surasi nechta oyatdan iborat?",
+    "answer": "111"
+  },
+  {
+    "question": "Yusuf surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "12"
+  },
+  {
+    "question": "Isro surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Isro surasi nechta oyatdan iborat?",
+    "answer": "111"
+  },
+  {
+    "question": "Isro surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "17"
+  },
+  {
+    "question": "Kahf surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Kahf surasi nechta oyatdan iborat?",
+    "answer": "110"
+  },
+  {
+    "question": "Kahf surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "18"
+  },
+  {
+    "question": "Maryam surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Maryam surasi nechta oyatdan iborat?",
+    "answer": "98"
+  },
+  {
+    "question": "Maryam surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "19"
+  },
+  {
+    "question": "Toha surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Toha surasi nechta oyatdan iborat?",
+    "answer": "135"
+  },
+  {
+    "question": "Toha surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "20"
+  },
+  {
+    "question": "Nur surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Nur surasi nechta oyatdan iborat?",
+    "answer": "64"
+  },
+  {
+    "question": "Nur surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "24"
+  },
+  {
+    "question": "Sajda surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Sajda surasi nechta oyatdan iborat?",
+    "answer": "30"
+  },
+  {
+    "question": "Sajda surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "32"
+  },
+  {
+    "question": "Yosin surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Yosin surasi nechta oyatdan iborat?",
+    "answer": "83"
+  },
+  {
+    "question": "Yosin surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "36"
+  },
+  {
+    "question": "Fath surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Fath surasi nechta oyatdan iborat?",
+    "answer": "29"
+  },
+  {
+    "question": "Fath surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "48"
+  },
+  {
+    "question": "Hujurot surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Hujurot surasi nechta oyatdan iborat?",
+    "answer": "18"
+  },
+  {
+    "question": "Hujurot surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "49"
+  },
+  {
+    "question": "Rohman surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Rohman surasi nechta oyatdan iborat?",
+    "answer": "78"
+  },
+  {
+    "question": "Rohman surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "55"
+  },
+  {
+    "question": "Voqea surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Voqea surasi nechta oyatdan iborat?",
+    "answer": "96"
+  },
+  {
+    "question": "Voqea surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "56"
+  },
+  {
+    "question": "Hashr surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Hashr surasi nechta oyatdan iborat?",
+    "answer": "24"
+  },
+  {
+    "question": "Hashr surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "59"
+  },
+  {
+    "question": "Juma surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Juma surasi nechta oyatdan iborat?",
+    "answer": "11"
+  },
+  {
+    "question": "Juma surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "62"
+  },
+  {
+    "question": "Mulk surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Mulk surasi nechta oyatdan iborat?",
+    "answer": "30"
+  },
+  {
+    "question": "Mulk surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "67"
+  },
+  {
+    "question": "Alaq surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Alaq surasi nechta oyatdan iborat?",
+    "answer": "19"
+  },
+  {
+    "question": "Alaq surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "96"
+  },
+  {
+    "question": "Qadr surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Qadr surasi nechta oyatdan iborat?",
+    "answer": "5"
+  },
+  {
+    "question": "Qadr surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "97"
+  },
+  {
+    "question": "Kavsar surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Kavsar surasi nechta oyatdan iborat?",
+    "answer": "3"
+  },
+  {
+    "question": "Kavsar surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "108"
+  },
+  {
+    "question": "Kofirun surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Kofirun surasi nechta oyatdan iborat?",
+    "answer": "6"
+  },
+  {
+    "question": "Kofirun surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "109"
+  },
+  {
+    "question": "Nasr surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Madina"
+  },
+  {
+    "question": "Nasr surasi nechta oyatdan iborat?",
+    "answer": "3"
+  },
+  {
+    "question": "Nasr surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "110"
+  },
+  {
+    "question": "Ixlos surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Ixlos surasi nechta oyatdan iborat?",
+    "answer": "4"
+  },
+  {
+    "question": "Ixlos surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "112"
+  },
+  {
+    "question": "Falaq surasi asosan qaysi shaharda nozil bo'lgan?",
+    "answer": "Makka"
+  },
+  {
+    "question": "Falaq surasi nechta oyatdan iborat?",
+    "answer": "5"
+  },
+  {
+    "question": "Falaq surasi Qur'oni Karimda nechanchi sura bo'lib keladi?",
+    "answer": "113"
   }
 ]
