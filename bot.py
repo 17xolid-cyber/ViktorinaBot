@@ -385,7 +385,7 @@ async def check_answer(message: types.Message):
     scores[user_id]["score"] += 100
     correct_ans_display = current_question.get("answer", "")
 
-    await message.answer(
+    await message.reply(
         f"🎉 Tabriklayman, {user_name}! To'g'ri javob.\n"
         f"To'g'ri javob: {correct_ans_display}\n"
         f"Sizga 100 ball berildi! 🎯\n\n"
