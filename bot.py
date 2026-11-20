@@ -231,6 +231,7 @@ def load_access() -> dict:
             "active": bool(info.get("active", False)),
             "expires_at": info.get("expires_at"),
             "title": str(info.get("title") or ""),
+            "in_group": bool(info.get("in_group", True)),
         }
     return restored
   except (json.JSONDecodeError, OSError, ValueError):
@@ -243,6 +244,7 @@ def save_access() -> None:
           "active": bool(info.get("active", False)),
           "expires_at": info.get("expires_at"),
           "title": str(info.get("title") or ""),
+          "in_group": bool(info.get("in_group", True)),
       }
       for cid, info in chat_access.items()
   }
@@ -254,6 +256,26 @@ def save_access() -> None:
     os.replace(TEMP_ACCESS_FILE, ACCESS_FILE)
   except OSError:
     pass
+
+
+def record_group_seen(chat: types.Chat, in_group: bool | None = None) -> None:
+  if chat.type == "private":
+    return
+  existing = chat_access.get(
+      chat.id,
+      {
+          "active": False,
+          "expires_at": None,
+          "title": "",
+          "in_group": True,
+      },
+  )
+  if chat.title:
+    existing["title"] = chat.title
+  if in_group is not None:
+    existing["in_group"] = in_group
+  chat_access[chat.id] = existing
+  save_access()
 
 
 def is_group_active(chat_id: int) -> bool:
@@ -426,6 +448,7 @@ async def activate_group_and_notify(
       "active": True,
       "expires_at": expires_iso,
       "title": existing.get("title", ""),
+      "in_group": existing.get("in_group", True),
   }
   save_access()
 
@@ -605,15 +628,25 @@ async def is_user_admin(message: types.Message) -> bool:
     return False
 
 
+@dp.my_chat_member()
+async def on_my_chat_member(event: types.ChatMemberUpdated):
+  """Bot guruhga qo'shilganda, chiqarilganda yoki nomi o'zgarganda saqlaydi."""
+  if event.chat.type == "private":
+    return
+  new_status = event.new_chat_member.status
+  in_group = new_status in {"member", "administrator", "creator"}
+  record_group_seen(event.chat, in_group=in_group)
+
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, command: CommandObject):
-  args = (command.args or "").strip()
-
   if message.chat.type != "private":
+    record_group_seen(message.chat, in_group=True)
     if not is_group_active(message.chat.id):
       await send_sleeping_group_message(message)
       return
 
+  args = (command.args or "").strip()
   if message.chat.type == "private" and args.startswith("pay_"):
     raw_cid = args.replace("pay_", "", 1).strip()
     target_cid = None
@@ -636,6 +669,35 @@ async def cmd_start(message: types.Message, command: CommandObject):
       "• /reyting — joriy reytingni ko'rish\n"
       "• /tugatish — reytingni yakunlash (faqat adminlar uchun)"
   )
+
+
+@dp.message(Command("guruhlar"))
+async def cmd_guruhlar(message: types.Message):
+  """Faqat ADMIN_ID uchun bot qaysi guruhlarda borligi va muddatini ko'rsatadi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  if not chat_access:
+    await message.answer("Hozircha hech qanday guruh qayd etilmagan.")
+    return
+
+  lines = ["📋 <b>Guruhlar ro'yxati:</b>\n"]
+  for idx, (cid, info) in enumerate(chat_access.items(), start=1):
+    title = str(info.get("title") or "").strip()
+    title_part = f"<b>{html.escape(title)}</b> " if title else ""
+    in_group = bool(info.get("in_group", True))
+    presence = "Guruhda bor" if in_group else "Chiqarilgan"
+    active = is_group_active(cid)
+    status_label = "Uyg'oq 🟢" if active else "Uxlayabdi 😴"
+    expiry_str = get_expiry_text(cid)
+
+    lines.append(
+        f"{idx}. {title_part}(<code>{cid}</code>)\n"
+        f"   • Holat: <b>{status_label}</b> ({presence})\n"
+        f"   • Muddat: <b>{html.escape(expiry_str)}</b>"
+    )
+
+  await message.answer("\n\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 @dp.callback_query(F.data.startswith("back:"))
@@ -940,9 +1002,11 @@ async def cmd_holat(message: types.Message, command: CommandObject):
 
 @dp.message(Command("next"))
 async def cmd_next(message: types.Message):
-  if message.chat.type != "private" and not is_group_active(message.chat.id):
-    await send_sleeping_group_message(message)
-    return
+  if message.chat.type != "private":
+    record_group_seen(message.chat, in_group=True)
+    if not is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
 
   questions = load_questions()
   if not questions:
@@ -955,9 +1019,11 @@ async def cmd_next(message: types.Message):
 
 @dp.message(Command("reyting"))
 async def cmd_reyting(message: types.Message):
-  if message.chat.type != "private" and not is_group_active(message.chat.id):
-    await send_sleeping_group_message(message)
-    return
+  if message.chat.type != "private":
+    record_group_seen(message.chat, in_group=True)
+    if not is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
 
   chat_game = get_chat_game(message.chat.id)
   await message.answer(
@@ -967,9 +1033,11 @@ async def cmd_reyting(message: types.Message):
 
 @dp.message(Command("tugatish"))
 async def cmd_tugatish(message: types.Message):
-  if message.chat.type != "private" and not is_group_active(message.chat.id):
-    await send_sleeping_group_message(message)
-    return
+  if message.chat.type != "private":
+    record_group_seen(message.chat, in_group=True)
+    if not is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
 
   if not await is_user_admin(message):
     await message.answer(
@@ -1069,8 +1137,10 @@ async def check_answer(message: types.Message):
   if not message.text or message.text.startswith("/"):
     return
 
-  if message.chat.type != "private" and not is_group_active(message.chat.id):
-    return
+  if message.chat.type != "private":
+    record_group_seen(message.chat, in_group=True)
+    if not is_group_active(message.chat.id):
+      return
 
   chat_game = get_chat_game(message.chat.id)
   current_question = chat_game["current_question"]
