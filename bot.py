@@ -929,9 +929,10 @@ async def cmd_holat(message: types.Message, command: CommandObject):
     return
 
   active = is_group_active(target_cid)
+  status_label = "Uyg'oq" if active else "Uxlayabdi"
   await message.answer(
       f"Chat ID: <code>{target_cid}</code>\n"
-      f"Holat: <b>{'Uyg\'oq' if active else 'Uxlayabdi'}</b>\n"
+      f"Holat: <b>{status_label}</b>\n"
       f"Muddat: <b>{html.escape(get_expiry_text(target_cid))}</b>",
       parse_mode=ParseMode.HTML,
   )
