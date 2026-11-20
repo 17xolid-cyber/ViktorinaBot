@@ -184,6 +184,18 @@ def format_mention_html(user_id: int, data: dict) -> str:
   return name
 
 
+def format_admin_profile_link_html(user_id: int, data: dict) -> str:
+  """Faqat admin (siz) uchun foydalanuvchi profiliga havola qaytaradi."""
+  name = html.escape(str(data.get("name") or "Foydalanuvchi"))
+  username = str(data.get("username") or "").strip().lstrip("@")
+  if user_id:
+    label = f"{name} (@{html.escape(username)})" if username else name
+    return f'<a href="tg://user?id={user_id}">{label}</a>'
+  if username:
+    return f"@{html.escape(username)}"
+  return name
+
+
 def build_user_data(user: types.User | None) -> dict:
   if not user:
     return {"id": 0, "name": "O'yinchi", "username": ""}
@@ -232,29 +244,47 @@ def format_question_text(question_text: str) -> str:
   )
 
 
+def _clean_db_url(url: str) -> str:
+  cleaned = url.strip().strip('"').strip("'")
+  cleaned = re.sub(r"([?&])channel_binding=[^&]*(&|$)", r"\1", cleaned)
+  cleaned = cleaned.rstrip("?&")
+  return cleaned
+
+
 async def init_db() -> None:
   global db_pool
-  if not DATABASE_URL or asyncpg is None:
+  if not DATABASE_URL:
+    print("DB WARNING: DATABASE_URL is empty")
     return
-  db_pool = await asyncpg.create_pool(dsn=DATABASE_URL, min_size=1, max_size=5)
-  async with db_pool.acquire() as conn:
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS chat_access (
-            chat_id BIGINT PRIMARY KEY,
-            active BOOLEAN NOT NULL DEFAULT FALSE,
-            expires_at TIMESTAMPTZ NULL,
-            title TEXT NOT NULL DEFAULT '',
-            username TEXT NOT NULL DEFAULT '',
-            in_group BOOLEAN NOT NULL DEFAULT TRUE
-        );
-    """)
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS chat_games (
-            chat_id BIGINT PRIMARY KEY,
-            current_question JSONB NULL,
-            scores JSONB NOT NULL DEFAULT '{}'::jsonb
-        );
-    """)
+  if asyncpg is None:
+    print("DB WARNING: asyncpg is not installed")
+    return
+
+  dsn = _clean_db_url(DATABASE_URL)
+  try:
+    db_pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5)
+    async with db_pool.acquire() as conn:
+      await conn.execute("""
+          CREATE TABLE IF NOT EXISTS chat_access (
+              chat_id BIGINT PRIMARY KEY,
+              active BOOLEAN NOT NULL DEFAULT FALSE,
+              expires_at TIMESTAMPTZ NULL,
+              title TEXT NOT NULL DEFAULT '',
+              username TEXT NOT NULL DEFAULT '',
+              in_group BOOLEAN NOT NULL DEFAULT TRUE
+          );
+      """)
+      await conn.execute("""
+          CREATE TABLE IF NOT EXISTS chat_games (
+              chat_id BIGINT PRIMARY KEY,
+              current_question JSONB NULL,
+              scores JSONB NOT NULL DEFAULT '{}'::jsonb
+          );
+      """)
+    print("DB CONNECTED")
+  except Exception as exc:
+    db_pool = None
+    print(f"DB ERROR in init_db: {exc}")
 
 
 def _parse_iso_dt(value: str | None) -> datetime | None:
@@ -338,7 +368,8 @@ async def load_access_async() -> dict:
         db_data[cid] = info
         await upsert_chat_access_db(cid, info)
     return db_data
-  except Exception:
+  except Exception as exc:
+    print(f"DB ERROR in load_access_async: {exc}")
     return json_data
 
 
@@ -366,8 +397,8 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
           str(info.get("username") or "").strip().lstrip("@"),
           bool(info.get("in_group", True)),
       )
-  except Exception:
-    pass
+  except Exception as exc:
+    print(f"DB ERROR in upsert_chat_access_db: {exc}")
 
 
 async def persist_chat_access(chat_id: int | None = None) -> None:
@@ -622,7 +653,7 @@ async def activate_group_and_notify(
     admin_user: types.User | None,
     buyer_id: int | None = None,
 ) -> str:
-  """Guruhni uyg'otadi, guruhga to'lov qilgan foydalanuvchi nomi bilan xabar yuboradi va pin qiladi."""
+  """Guruhni uyg'otadi, guruhga havolasiz xabar yuboradi va pin qiladi."""
   expires_iso = None
   if days is not None and days > 0:
     exp_dt = datetime.now(timezone.utc) + timedelta(days=days)
@@ -791,8 +822,8 @@ async def upsert_chat_game_db(chat_id: int, data: dict) -> None:
           current_q_json,
           scores_json,
       )
-  except Exception:
-    pass
+  except Exception as exc:
+    print(f"DB ERROR in upsert_chat_game_db: {exc}")
 
 
 async def load_state_async() -> dict:
@@ -822,7 +853,8 @@ async def load_state_async() -> dict:
         restored[cid] = gdata
         await upsert_chat_game_db(cid, gdata)
     return restored
-  except Exception:
+  except Exception as exc:
+    print(f"DB ERROR in load_state_async: {exc}")
     return json_data
 
 
@@ -1066,7 +1098,7 @@ async def cb_select_tariff(callback: types.CallbackQuery):
   if target_cid != 0 and user:
     pending_buyers[target_cid] = buyer_data
 
-  buyer_mention = format_mention_html(
+  admin_user_link = format_admin_profile_link_html(
       user.id if user else 0,
       buyer_data,
   )
@@ -1101,7 +1133,7 @@ async def cb_select_tariff(callback: types.CallbackQuery):
           chat_id=ADMIN_ID,
           text=(
               "💳 <b>Yangi tarif tanlandi!</b>\n\n"
-              f"Foydalanuvchi: {buyer_mention}\n"
+              f"Foydalanuvchi: {admin_user_link}\n"
               f"Guruh ID: <code>{target_cid}</code>\n"
               f"Tarif: <b>{html.escape(tariff['label'])}</b>"
               f" ({html.escape(tariff['price'])}, {days_info})\n\n"
@@ -1401,7 +1433,9 @@ async def handle_payment_photo(message: types.Message):
   )
 
   if ADMIN_ID and message.photo:
-    buyer_mention = format_mention_html(message.from_user.id, buyer_data)
+    admin_user_link = format_admin_profile_link_html(
+        message.from_user.id, buyer_data
+    )
     approve_kb = (
         build_admin_approve_keyboard(
             target_cid, days_val, message.from_user.id
@@ -1420,7 +1454,7 @@ async def handle_payment_photo(message: types.Message):
           photo=message.photo[-1].file_id,
           caption=(
               "🧾 <b>Yangi to'lov cheki!</b>\n\n"
-              f"Foydalanuvchi: {buyer_mention}\n"
+              f"Foydalanuvchi: {admin_user_link}\n"
               f"Guruh ID: <code>{target_cid}</code>\n"
               f"Tarif: <b>{html.escape(tariff_text)}</b>"
               f"{extra_line}"
