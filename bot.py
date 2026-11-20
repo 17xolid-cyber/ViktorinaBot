@@ -12,12 +12,18 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from dotenv import load_dotenv
 
+try:
+  import asyncpg
+except ImportError:
+  asyncpg = None
+
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 0
 BOT_USERNAME = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
 CARD_NUMBER = os.getenv("CARD_NUMBER", "").strip()
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -27,15 +33,17 @@ TEMP_STATE_FILE = "games_state.tmp"
 ACCESS_FILE = "chats_access.json"
 TEMP_ACCESS_FILE = "chats_access.tmp"
 
+db_pool = None
 games = {}
 chat_access = {}
 pending_receipts = {}
+pending_buyers = {}
 
 TARIFFS = {
-    "10d": {"label": "10 kunga", "days": 10, "price": "6 000 so'm"},
-    "1m": {"label": "1 oyga", "days": 30, "price": "19 000 so'm"},
-    "2m": {"label": "2 oyga", "days": 60, "price": "39 000 so'm"},
-    "3m": {"label": "3 oyga", "days": 90, "price": "59 000 so'm"},
+    "15d": {"label": "15 kunga", "days": 15, "price": "12 000 so'm"},
+    "1m": {"label": "1 oyga", "days": 30, "price": "20 000 so'm"},
+    "2m": {"label": "2 oyga", "days": 60, "price": "35 000 so'm"},
+    "3m": {"label": "3 oyga", "days": 90, "price": "50 000 so'm"},
 }
 
 CYR_TO_LAT = {
@@ -99,8 +107,6 @@ HONORIFIC_PATTERNS = [
     r"\balayhi[\s\-]*as[\s\-]*salom\b",
     r"\ba\.?\s*s\.?\b",
     r"\bpayg'?ambar(?:i)?(?:imiz)?\b",
-    r"\broziyallohu[\s\-]*anhu(?:mo)?\b",
-    r"\brodiyallohu[\s\-]*anhu(?:mo)?\b",
     r"\broziyallohu[\s\-]*anhu(?:mo)?\b",
     r"\brodiyallohu[\s\-]*anhu(?:mo)?\b",
     r"\broziyallohu[\s\-]*anho\b",
@@ -178,6 +184,16 @@ def format_mention_html(user_id: int, data: dict) -> str:
   return name
 
 
+def build_user_data(user: types.User | None) -> dict:
+  if not user:
+    return {"id": 0, "name": "O'yinchi", "username": ""}
+  return {
+      "id": user.id,
+      "name": get_display_name(user),
+      "username": (user.username or "").strip().lstrip("@"),
+  }
+
+
 def format_scores_text(
     scores: dict,
     title: str = "Ayni vaqtdagi natijalar 📊:",
@@ -216,7 +232,44 @@ def format_question_text(question_text: str) -> str:
   )
 
 
-def load_access() -> dict:
+async def init_db() -> None:
+  global db_pool
+  if not DATABASE_URL or asyncpg is None:
+    return
+  db_pool = await asyncpg.create_pool(dsn=DATABASE_URL, min_size=1, max_size=5)
+  async with db_pool.acquire() as conn:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS chat_access (
+            chat_id BIGINT PRIMARY KEY,
+            active BOOLEAN NOT NULL DEFAULT FALSE,
+            expires_at TIMESTAMPTZ NULL,
+            title TEXT NOT NULL DEFAULT '',
+            username TEXT NOT NULL DEFAULT '',
+            in_group BOOLEAN NOT NULL DEFAULT TRUE
+        );
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS chat_games (
+            chat_id BIGINT PRIMARY KEY,
+            current_question JSONB NULL,
+            scores JSONB NOT NULL DEFAULT '{}'::jsonb
+        );
+    """)
+
+
+def _parse_iso_dt(value: str | None) -> datetime | None:
+  if not value:
+    return None
+  try:
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+      dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+  except ValueError:
+    return None
+
+
+def load_access_from_json() -> dict:
   if not os.path.exists(ACCESS_FILE):
     return {}
   try:
@@ -239,7 +292,7 @@ def load_access() -> dict:
     return {}
 
 
-def save_access() -> None:
+def save_access_to_json() -> None:
   serializable = {
       str(cid): {
           "active": bool(info.get("active", False)),
@@ -260,7 +313,77 @@ def save_access() -> None:
     pass
 
 
-def record_group_seen(chat: types.Chat, in_group: bool | None = None) -> None:
+async def load_access_async() -> dict:
+  json_data = load_access_from_json()
+  if not db_pool:
+    return json_data
+  try:
+    async with db_pool.acquire() as conn:
+      rows = await conn.fetch(
+          "SELECT chat_id, active, expires_at, title, username, in_group FROM"
+          " chat_access"
+      )
+    db_data = {}
+    for r in rows:
+      exp_dt = r["expires_at"]
+      db_data[int(r["chat_id"])] = {
+          "active": bool(r["active"]),
+          "expires_at": exp_dt.isoformat() if exp_dt else None,
+          "title": str(r["title"] or ""),
+          "username": str(r["username"] or "").strip().lstrip("@"),
+          "in_group": bool(r["in_group"]),
+      }
+    for cid, info in json_data.items():
+      if cid not in db_data:
+        db_data[cid] = info
+        await upsert_chat_access_db(cid, info)
+    return db_data
+  except Exception:
+    return json_data
+
+
+async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
+  if not db_pool:
+    return
+  exp_dt = _parse_iso_dt(info.get("expires_at"))
+  try:
+    async with db_pool.acquire() as conn:
+      await conn.execute(
+          """
+          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (chat_id) DO UPDATE SET
+              active = EXCLUDED.active,
+              expires_at = EXCLUDED.expires_at,
+              title = CASE WHEN EXCLUDED.title <> '' THEN EXCLUDED.title ELSE chat_access.title END,
+              username = CASE WHEN EXCLUDED.username <> '' THEN EXCLUDED.username ELSE chat_access.username END,
+              in_group = EXCLUDED.in_group
+          """,
+          chat_id,
+          bool(info.get("active", False)),
+          exp_dt,
+          str(info.get("title") or ""),
+          str(info.get("username") or "").strip().lstrip("@"),
+          bool(info.get("in_group", True)),
+      )
+  except Exception:
+    pass
+
+
+async def persist_chat_access(chat_id: int | None = None) -> None:
+  save_access_to_json()
+  if not db_pool:
+    return
+  if chat_id is not None and chat_id in chat_access:
+    await upsert_chat_access_db(chat_id, chat_access[chat_id])
+  else:
+    for cid, info in chat_access.items():
+      await upsert_chat_access_db(cid, info)
+
+
+async def record_group_seen(
+    chat: types.Chat, in_group: bool | None = None
+) -> None:
   if chat.type == "private":
     return
   existing = chat_access.get(
@@ -275,16 +398,15 @@ def record_group_seen(chat: types.Chat, in_group: bool | None = None) -> None:
   )
   if chat.title:
     existing["title"] = chat.title
-  if hasattr(chat, "username"):
-    existing["username"] = (chat.username or "").strip().lstrip("@")
+  if hasattr(chat, "username") and chat.username:
+    existing["username"] = chat.username.strip().lstrip("@")
   if in_group is not None:
     existing["in_group"] = in_group
   chat_access[chat.id] = existing
-  save_access()
+  await persist_chat_access(chat.id)
 
 
 async def fetch_live_chat_info(chat_id: int) -> dict | None:
-  """Telegram API orqali guruhning jonli nomi va havolasini oladi."""
   try:
     chat_obj = await bot.get_chat(chat_id=chat_id)
     title = (chat_obj.title or "").strip()
@@ -302,10 +424,11 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
     )
     if title:
       existing["title"] = title
-    existing["username"] = username
+    if username:
+      existing["username"] = username
     existing["in_group"] = True
     chat_access[chat_id] = existing
-    save_access()
+    await persist_chat_access(chat_id)
 
     return {
         "title": title,
@@ -314,28 +437,25 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
   except Exception:
     if chat_id in chat_access:
       chat_access[chat_id]["in_group"] = False
-      save_access()
+      await persist_chat_access(chat_id)
     return None
 
 
-def is_group_active(chat_id: int) -> bool:
+async def is_group_active(chat_id: int) -> bool:
   info = chat_access.get(chat_id)
   if not info or not info.get("active"):
     return False
   expires_at = info.get("expires_at")
   if not expires_at:
     return True
-  try:
-    exp_dt = datetime.fromisoformat(expires_at)
-    if exp_dt.tzinfo is None:
-      exp_dt = exp_dt.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) >= exp_dt:
-      info["active"] = False
-      save_access()
-      return False
-    return True
-  except ValueError:
+  exp_dt = _parse_iso_dt(expires_at)
+  if exp_dt is None:
     return False
+  if datetime.now(timezone.utc) >= exp_dt:
+    info["active"] = False
+    await persist_chat_access(chat_id)
+    return False
+  return True
 
 
 def get_expiry_text(chat_id: int) -> str:
@@ -345,15 +465,12 @@ def get_expiry_text(chat_id: int) -> str:
   expires_at = info.get("expires_at")
   if not expires_at:
     return "Cheksiz"
-  try:
-    exp_dt = datetime.fromisoformat(expires_at)
-    if exp_dt.tzinfo is None:
-      exp_dt = exp_dt.replace(tzinfo=timezone.utc)
-    return exp_dt.astimezone(timezone(timedelta(hours=5))).strftime(
-        "%Y-%m-%d %H:%M"
-    )
-  except ValueError:
+  exp_dt = _parse_iso_dt(expires_at)
+  if exp_dt is None:
     return str(expires_at)
+  return exp_dt.astimezone(timezone(timedelta(hours=5))).strftime(
+      "%Y-%m-%d %H:%M"
+  )
 
 
 async def get_bot_username() -> str:
@@ -393,7 +510,7 @@ def build_tariffs_keyboard(target_chat_id: int | None) -> InlineKeyboardMarkup:
       inline_keyboard=[
           [
               InlineKeyboardButton(
-                  text="10 kunga", callback_data=f"tar:10d:{cid_part}"
+                  text="15 kunga", callback_data=f"tar:15d:{cid_part}"
               ),
               InlineKeyboardButton(
                   text="1 oyga", callback_data=f"tar:1m:{cid_part}"
@@ -457,10 +574,10 @@ def format_tariffs_text(target_chat_id: int | None) -> str:
   return (
       "Botdan foydalanish uchun to'lov qilish zarur! Iltimos, quyidagi"
       f" tariflardan birini tanlang!\n{group_line}"
-      "10 kun uchun - 6 000 so'm\n"
-      "1 oy uchun - 19 000 so'm\n"
-      "2 oy uchun - 39 000 so'm\n"
-      "3 oy uchun - 59 000 so'm!\n\n"
+      "15 kun uchun - 12 000 so'm\n"
+      "1 oy uchun - 20 000 so'm\n"
+      "2 oy uchun - 35 000 so'm\n"
+      "3 oy uchun - 50 000 so'm!\n\n"
       "Botni uyg'otmoqchi bo'lgan muddatingizni tanlang 👇"
   )
 
@@ -472,10 +589,40 @@ def build_activate_command(target_cid: int, days: int | None) -> str:
   return f"/faollashtir {cid_str}"
 
 
+def resolve_payer_data(
+    target_cid: int,
+    buyer_id: int | None = None,
+    fallback_user: types.User | None = None,
+) -> tuple[int, dict]:
+  """Guruhni uyg'otgan foydalanuvchi ma'lumotini qaytaradi (avval to'lov qilgan foydalanuvchini oladi)."""
+  if buyer_id and buyer_id in pending_receipts:
+    r = pending_receipts[buyer_id]
+    if r.get("buyer_data"):
+      return int(buyer_id), r["buyer_data"]
+
+  if target_cid in pending_buyers:
+    b = pending_buyers[target_cid]
+    if not buyer_id or b.get("id") == buyer_id:
+      return int(b.get("id") or 0), b
+
+  if buyer_id:
+    return int(buyer_id), {
+        "id": int(buyer_id),
+        "name": "Foydalanuvchi",
+        "username": "",
+    }
+
+  u_data = build_user_data(fallback_user)
+  return u_data["id"], u_data
+
+
 async def activate_group_and_notify(
-    target_cid: int, days: int | None, admin_user: types.User | None
+    target_cid: int,
+    days: int | None,
+    admin_user: types.User | None,
+    buyer_id: int | None = None,
 ) -> str:
-  """Guruhni uyg'otadi, guruhga xabar yuboradi, pin qiladi va status matnini qaytaradi."""
+  """Guruhni uyg'otadi, guruhga to'lov qilgan foydalanuvchi nomi bilan xabar yuboradi va pin qiladi."""
   expires_iso = None
   if days is not None and days > 0:
     exp_dt = datetime.now(timezone.utc) + timedelta(days=days)
@@ -491,23 +638,23 @@ async def activate_group_and_notify(
       "username": existing.get("username", ""),
       "in_group": existing.get("in_group", True),
   }
-  save_access()
+  await persist_chat_access(target_cid)
 
-  admin_mention = format_mention_html(
-      admin_user.id if admin_user else 0,
-      {
-          "name": get_display_name(admin_user),
-          "username": admin_user.username if admin_user and admin_user.username else "",
-      },
+  payer_uid, payer_data = resolve_payer_data(
+      target_cid, buyer_id=buyer_id, fallback_user=admin_user
   )
+  payer_mention = format_mention_html(payer_uid, payer_data)
+
+  pending_buyers.pop(target_cid, None)
+
   if days is not None:
     group_notice = (
-        f"Botni {admin_mention} {days} kunga uyg'otdi. Bot {days} kun"
+        f"Botni {payer_mention} {days} kunga uyg'otdi. Bot {days} kun"
         " davomida uxlamasdan xizmatingizda!"
     )
   else:
     group_notice = (
-        f"Botni {admin_mention} 1 umrlikka uyg'otdi. Bot bir umr"
+        f"Botni {payer_mention} 1 umrlikka uyg'otdi. Bot bir umr"
         " davomida uxlamasdan xizmatingizda!\n\n"
         "Eslatma: bir umrlik tarif bot yoki ushbu guruh o'chirilguncha amal"
         " qiladi."
@@ -542,8 +689,41 @@ async def activate_group_and_notify(
   return "\n⚠️ Guruhga xabar yuborib bo'lmadi (bot guruhda bormi tekshiring)."
 
 
-def load_state() -> dict:
-  """Servis uyg'onganda yoki qayta ishga tushganda o'yin holatini tiklaydi."""
+def _normalize_restored_games(raw: dict) -> dict:
+  restored = {}
+  for chat_id_str, data in raw.items():
+    if not isinstance(data, dict):
+      continue
+    chat_id = int(chat_id_str)
+    raw_scores = data.get("scores", {})
+    scores = {}
+    if isinstance(raw_scores, dict):
+      for uid, info in raw_scores.items():
+        if isinstance(info, dict):
+          scores[int(uid)] = {
+              "name": str(info.get("name") or "O'yinchi"),
+              "username": str(info.get("username") or "").strip(),
+              "score": int(info.get("score", 0)),
+          }
+
+    current_q = data.get("current_question")
+    if (
+        isinstance(current_q, dict)
+        and "question" in current_q
+        and "answer" in current_q
+    ):
+      valid_q = current_q
+    else:
+      valid_q = None
+
+    restored[chat_id] = {
+        "current_question": valid_q,
+        "scores": scores,
+    }
+  return restored
+
+
+def load_state_from_json() -> dict:
   if not os.path.exists(STATE_FILE):
     return {}
   try:
@@ -551,44 +731,12 @@ def load_state() -> dict:
       raw = json.load(f)
     if not isinstance(raw, dict):
       return {}
-
-    restored = {}
-    for chat_id_str, data in raw.items():
-      if not isinstance(data, dict):
-        continue
-      chat_id = int(chat_id_str)
-      raw_scores = data.get("scores", {})
-      scores = {}
-      if isinstance(raw_scores, dict):
-        for uid, info in raw_scores.items():
-          if isinstance(info, dict):
-            scores[int(uid)] = {
-                "name": str(info.get("name") or "O'yinchi"),
-                "username": str(info.get("username") or "").strip(),
-                "score": int(info.get("score", 0)),
-            }
-
-      current_q = data.get("current_question")
-      if (
-          isinstance(current_q, dict)
-          and "question" in current_q
-          and "answer" in current_q
-      ):
-        valid_q = current_q
-      else:
-        valid_q = None
-
-      restored[chat_id] = {
-          "current_question": valid_q,
-          "scores": scores,
-      }
-    return restored
+    return _normalize_restored_games(raw)
   except (json.JSONDecodeError, OSError, ValueError):
     return {}
 
 
-def save_state() -> None:
-  """O'yin holatini vaqtinchalik fayl orqali xavfsiz (atomar) saqlaydi."""
+def save_state_to_json() -> None:
   serializable = {}
   for chat_id, data in games.items():
     serializable[str(chat_id)] = {
@@ -612,13 +760,90 @@ def save_state() -> None:
     pass
 
 
-def get_chat_game(chat_id: int) -> dict:
+async def upsert_chat_game_db(chat_id: int, data: dict) -> None:
+  if not db_pool:
+    return
+  scores_serializable = {
+      str(uid): {
+          "name": str(info.get("name") or "O'yinchi"),
+          "username": str(info.get("username") or "").strip(),
+          "score": int(info.get("score", 0)),
+      }
+      for uid, info in data.get("scores", {}).items()
+  }
+  current_q_json = (
+      json.dumps(data.get("current_question"), ensure_ascii=False)
+      if data.get("current_question") is not None
+      else None
+  )
+  scores_json = json.dumps(scores_serializable, ensure_ascii=False)
+  try:
+    async with db_pool.acquire() as conn:
+      await conn.execute(
+          """
+          INSERT INTO chat_games (chat_id, current_question, scores)
+          VALUES ($1, $2::jsonb, $3::jsonb)
+          ON CONFLICT (chat_id) DO UPDATE SET
+              current_question = EXCLUDED.current_question,
+              scores = EXCLUDED.scores
+          """,
+          chat_id,
+          current_q_json,
+          scores_json,
+      )
+  except Exception:
+    pass
+
+
+async def load_state_async() -> dict:
+  json_data = load_state_from_json()
+  if not db_pool:
+    return json_data
+  try:
+    async with db_pool.acquire() as conn:
+      rows = await conn.fetch(
+          "SELECT chat_id, current_question, scores FROM chat_games"
+      )
+    raw_map = {}
+    for r in rows:
+      cq = r["current_question"]
+      sc = r["scores"]
+      if isinstance(cq, str):
+        cq = json.loads(cq)
+      if isinstance(sc, str):
+        sc = json.loads(sc)
+      raw_map[str(r["chat_id"])] = {
+          "current_question": cq,
+          "scores": sc if isinstance(sc, dict) else {},
+      }
+    restored = _normalize_restored_games(raw_map)
+    for cid, gdata in json_data.items():
+      if cid not in restored:
+        restored[cid] = gdata
+        await upsert_chat_game_db(cid, gdata)
+    return restored
+  except Exception:
+    return json_data
+
+
+async def persist_state(chat_id: int | None = None) -> None:
+  save_state_to_json()
+  if not db_pool:
+    return
+  if chat_id is not None and chat_id in games:
+    await upsert_chat_game_db(chat_id, games[chat_id])
+  else:
+    for cid, gdata in games.items():
+      await upsert_chat_game_db(cid, gdata)
+
+
+async def get_chat_game(chat_id: int) -> dict:
   if chat_id not in games:
     games[chat_id] = {
         "current_question": None,
         "scores": {},
     }
-    save_state()
+    await persist_state(chat_id)
   return games[chat_id]
 
 
@@ -647,7 +872,7 @@ async def send_question(
 ) -> None:
   next_q = pick_next_question(questions, chat_game.get("current_question"))
   chat_game["current_question"] = next_q
-  save_state()
+  await persist_state(message.chat.id)
   await message.answer(
       format_question_text(next_q["question"]),
       parse_mode=ParseMode.HTML,
@@ -676,14 +901,14 @@ async def on_my_chat_member(event: types.ChatMemberUpdated):
     return
   new_status = event.new_chat_member.status
   in_group = new_status in {"member", "administrator", "creator"}
-  record_group_seen(event.chat, in_group=in_group)
+  await record_group_seen(event.chat, in_group=in_group)
 
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, command: CommandObject):
   if message.chat.type != "private":
-    record_group_seen(message.chat, in_group=True)
-    if not is_group_active(message.chat.id):
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
       await send_sleeping_group_message(message)
       return
 
@@ -695,6 +920,9 @@ async def cmd_start(message: types.Message, command: CommandObject):
       target_cid = int(raw_cid)
     except ValueError:
       target_cid = None
+
+    if target_cid is not None and message.from_user:
+      pending_buyers[target_cid] = build_user_data(message.from_user)
 
     await message.answer(
         format_tariffs_text(target_cid),
@@ -743,7 +971,7 @@ async def cmd_guruhlar(message: types.Message):
     else:
       link_line = ""
 
-    active = is_group_active(cid)
+    active = await is_group_active(cid)
     status_label = "Uyg'oq 🟢" if active else "Uxlayabdi 😴"
     expiry_str = get_expiry_text(cid)
 
@@ -792,14 +1020,19 @@ async def cb_paid_clicked(callback: types.CallbackQuery):
   except ValueError:
     target_cid = 0
 
-  if callback.from_user and tariff:
-    pending_receipts[callback.from_user.id] = {
-        "code": code,
-        "label": tariff["label"],
-        "days": tariff["days"],
-        "price": tariff["price"],
-        "chat_id": target_cid,
-    }
+  if callback.from_user:
+    buyer_data = build_user_data(callback.from_user)
+    if target_cid != 0:
+      pending_buyers[target_cid] = buyer_data
+    if tariff:
+      pending_receipts[callback.from_user.id] = {
+          "code": code,
+          "label": tariff["label"],
+          "days": tariff["days"],
+          "price": tariff["price"],
+          "chat_id": target_cid,
+          "buyer_data": buyer_data,
+      }
 
   cid_note = f"\n\nGuruh ID: <code>{target_cid}</code>" if target_cid != 0 else ""
   await callback.message.answer(
@@ -829,12 +1062,13 @@ async def cb_select_tariff(callback: types.CallbackQuery):
     target_cid = 0
 
   user = callback.from_user
+  buyer_data = build_user_data(user)
+  if target_cid != 0 and user:
+    pending_buyers[target_cid] = buyer_data
+
   buyer_mention = format_mention_html(
       user.id if user else 0,
-      {
-          "name": get_display_name(user),
-          "username": user.username if user and user.username else "",
-      },
+      buyer_data,
   )
 
   duration_title = tariff["label"].replace("ga", "lik")
@@ -914,7 +1148,10 @@ async def cb_admin_approve(callback: types.CallbackQuery):
 
   days = days_raw if days_raw > 0 else None
   extra_status = await activate_group_and_notify(
-      target_cid, days, callback.from_user
+      target_cid,
+      days,
+      callback.from_user,
+      buyer_id=buyer_id if buyer_id else None,
   )
   expiry_text = get_expiry_text(target_cid)
 
@@ -966,7 +1203,7 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
   if len(args) < 1:
     await message.answer(
         "Foydalanish: <code>/faollashtir <chat_id> [kun]</code>\n"
-        "Masalan: <code>/faollashtir -1001234567890 10</code>\n"
+        "Masalan: <code>/faollashtir -1001234567890 15</code>\n"
         "Cheksiz muddat uchun kun yozmang: <code>/faollashtir"
         " -1001234567890</code>",
         parse_mode=ParseMode.HTML,
@@ -1022,7 +1259,7 @@ async def cmd_ochirish(message: types.Message, command: CommandObject):
 
   if target_cid in chat_access:
     chat_access[target_cid]["active"] = False
-    save_access()
+    await persist_chat_access(target_cid)
   await message.answer(
       f"🔒 Guruh o'chirildi: <code>{target_cid}</code>", parse_mode=ParseMode.HTML
   )
@@ -1047,7 +1284,7 @@ async def cmd_holat(message: types.Message, command: CommandObject):
     await message.answer("Chat ID noto'g'ri formatda.")
     return
 
-  active = is_group_active(target_cid)
+  active = await is_group_active(target_cid)
   status_label = "Uyg'oq" if active else "Uxlayabdi"
   await message.answer(
       f"Chat ID: <code>{target_cid}</code>\n"
@@ -1060,8 +1297,8 @@ async def cmd_holat(message: types.Message, command: CommandObject):
 @dp.message(Command("next"))
 async def cmd_next(message: types.Message):
   if message.chat.type != "private":
-    record_group_seen(message.chat, in_group=True)
-    if not is_group_active(message.chat.id):
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
       await send_sleeping_group_message(message)
       return
 
@@ -1070,19 +1307,19 @@ async def cmd_next(message: types.Message):
     await message.answer("Hozircha questions.json faylida savollar yo'q!")
     return
 
-  chat_game = get_chat_game(message.chat.id)
+  chat_game = await get_chat_game(message.chat.id)
   await send_question(message, chat_game, questions)
 
 
 @dp.message(Command("reyting"))
 async def cmd_reyting(message: types.Message):
   if message.chat.type != "private":
-    record_group_seen(message.chat, in_group=True)
-    if not is_group_active(message.chat.id):
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
       await send_sleeping_group_message(message)
       return
 
-  chat_game = get_chat_game(message.chat.id)
+  chat_game = await get_chat_game(message.chat.id)
   await message.answer(
       format_scores_text(chat_game["scores"]), parse_mode=ParseMode.HTML
   )
@@ -1091,8 +1328,8 @@ async def cmd_reyting(message: types.Message):
 @dp.message(Command("tugatish"))
 async def cmd_tugatish(message: types.Message):
   if message.chat.type != "private":
-    record_group_seen(message.chat, in_group=True)
-    if not is_group_active(message.chat.id):
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
       await send_sleeping_group_message(message)
       return
 
@@ -1102,12 +1339,12 @@ async def cmd_tugatish(message: types.Message):
     )
     return
 
-  chat_game = get_chat_game(message.chat.id)
+  chat_game = await get_chat_game(message.chat.id)
   scores = chat_game["scores"]
 
   if not scores:
     chat_game["current_question"] = None
-    save_state()
+    await persist_state(message.chat.id)
     await message.answer(
         "Yakunlash uchun bu guruhda hozircha reyting ballari yo'q."
     )
@@ -1125,7 +1362,7 @@ async def cmd_tugatish(message: types.Message):
 
   chat_game["scores"] = {}
   chat_game["current_question"] = None
-  save_state()
+  await persist_state(message.chat.id)
 
   await message.answer(text, parse_mode=ParseMode.HTML)
 
@@ -1134,9 +1371,21 @@ async def cmd_tugatish(message: types.Message):
 async def handle_payment_photo(message: types.Message):
   if not message.from_user:
     return
+  buyer_data = build_user_data(message.from_user)
   info = pending_receipts.pop(message.from_user.id, None)
   target_cid = info["chat_id"] if info else 0
-  days_val = info["days"] if info else 10
+  if target_cid == 0 and message.from_user.id in pending_receipts:
+    target_cid = pending_receipts[message.from_user.id].get("chat_id", 0)
+  if target_cid == 0:
+    for cid, b in pending_buyers.items():
+      if b.get("id") == message.from_user.id:
+        target_cid = cid
+        break
+
+  if target_cid != 0:
+    pending_buyers[target_cid] = buyer_data
+
+  days_val = info["days"] if info else 15
   if info:
     days_label = (
         f"{info['days']} kun" if info["days"] is not None else "Cheksiz"
@@ -1145,20 +1394,14 @@ async def handle_payment_photo(message: types.Message):
     activate_cmd = build_activate_command(target_cid, info["days"])
   else:
     tariff_text = "Ko'rsatilmagan"
-    activate_cmd = build_activate_command(target_cid, 10)
+    activate_cmd = build_activate_command(target_cid, 15)
 
   await message.answer(
       "✅ Chek/rasm qabul qilindi! Admin tekshirib, botni uyg'otadi."
   )
 
   if ADMIN_ID and message.photo:
-    buyer_mention = format_mention_html(
-        message.from_user.id,
-        {
-            "name": get_display_name(message.from_user),
-            "username": message.from_user.username or "",
-        },
-    )
+    buyer_mention = format_mention_html(message.from_user.id, buyer_data)
     approve_kb = (
         build_admin_approve_keyboard(
             target_cid, days_val, message.from_user.id
@@ -1195,11 +1438,11 @@ async def check_answer(message: types.Message):
     return
 
   if message.chat.type != "private":
-    record_group_seen(message.chat, in_group=True)
-    if not is_group_active(message.chat.id):
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
       return
 
-  chat_game = get_chat_game(message.chat.id)
+  chat_game = await get_chat_game(message.chat.id)
   current_question = chat_game["current_question"]
   if not current_question:
     return
@@ -1252,12 +1495,14 @@ async def check_answer(message: types.Message):
         parse_mode=ParseMode.HTML,
     )
 
+    await persist_state(message.chat.id)
+
     questions = load_questions()
     if questions:
       await send_question(message, chat_game, questions)
     else:
       chat_game["current_question"] = None
-      save_state()
+      await persist_state(message.chat.id)
 
 
 async def health_check(request):
@@ -1276,8 +1521,9 @@ async def start_web_server():
 
 async def main():
   global games, chat_access
-  games = load_state()
-  chat_access = load_access()
+  await init_db()
+  games = await load_state_async()
+  chat_access = await load_access_async()
   await start_web_server()
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
