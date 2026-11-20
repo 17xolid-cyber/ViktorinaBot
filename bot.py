@@ -231,6 +231,7 @@ def load_access() -> dict:
             "active": bool(info.get("active", False)),
             "expires_at": info.get("expires_at"),
             "title": str(info.get("title") or ""),
+            "username": str(info.get("username") or "").strip().lstrip("@"),
             "in_group": bool(info.get("in_group", True)),
         }
     return restored
@@ -244,6 +245,7 @@ def save_access() -> None:
           "active": bool(info.get("active", False)),
           "expires_at": info.get("expires_at"),
           "title": str(info.get("title") or ""),
+          "username": str(info.get("username") or "").strip().lstrip("@"),
           "in_group": bool(info.get("in_group", True)),
       }
       for cid, info in chat_access.items()
@@ -267,15 +269,53 @@ def record_group_seen(chat: types.Chat, in_group: bool | None = None) -> None:
           "active": False,
           "expires_at": None,
           "title": "",
+          "username": "",
           "in_group": True,
       },
   )
   if chat.title:
     existing["title"] = chat.title
+  if hasattr(chat, "username"):
+    existing["username"] = (chat.username or "").strip().lstrip("@")
   if in_group is not None:
     existing["in_group"] = in_group
   chat_access[chat.id] = existing
   save_access()
+
+
+async def fetch_live_chat_info(chat_id: int) -> dict | None:
+  """Telegram API orqali guruhning jonli nomi va havolasini oladi."""
+  try:
+    chat_obj = await bot.get_chat(chat_id=chat_id)
+    title = (chat_obj.title or "").strip()
+    username = (chat_obj.username or "").strip().lstrip("@")
+
+    existing = chat_access.get(
+        chat_id,
+        {
+            "active": False,
+            "expires_at": None,
+            "title": "",
+            "username": "",
+            "in_group": True,
+        },
+    )
+    if title:
+      existing["title"] = title
+    existing["username"] = username
+    existing["in_group"] = True
+    chat_access[chat_id] = existing
+    save_access()
+
+    return {
+        "title": title,
+        "username": username,
+    }
+  except Exception:
+    if chat_id in chat_access:
+      chat_access[chat_id]["in_group"] = False
+      save_access()
+    return None
 
 
 def is_group_active(chat_id: int) -> bool:
@@ -448,6 +488,7 @@ async def activate_group_and_notify(
       "active": True,
       "expires_at": expires_iso,
       "title": existing.get("title", ""),
+      "username": existing.get("username", ""),
       "in_group": existing.get("in_group", True),
   }
   save_access()
@@ -630,7 +671,7 @@ async def is_user_admin(message: types.Message) -> bool:
 
 @dp.my_chat_member()
 async def on_my_chat_member(event: types.ChatMemberUpdated):
-  """Bot guruhga qo'shilganda, chiqarilganda yoki nomi o'zgarganda saqlaydi."""
+  """Bot guruhga qo'shilganda, chiqarilganda yoki nomi/username o'zgarganda saqlaydi."""
   if event.chat.type == "private":
     return
   new_status = event.new_chat_member.status
@@ -671,28 +712,44 @@ async def cmd_start(message: types.Message, command: CommandObject):
   )
 
 
-@dp.message(Command("guruhlar"))
+@dp.message(Command("guruhlar"), F.chat.type == "private")
 async def cmd_guruhlar(message: types.Message):
-  """Faqat ADMIN_ID uchun bot qaysi guruhlarda borligi va muddatini ko'rsatadi."""
+  """Faqat shaxsiy chatda va faqat ADMIN_ID uchun guruhlar ro'yxatini ko'rsatadi."""
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
-  if not chat_access:
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if not known_ids:
     await message.answer("Hozircha hech qanday guruh qayd etilmagan.")
     return
 
   lines = ["📋 <b>Guruhlar ro'yxati:</b>\n"]
-  for idx, (cid, info) in enumerate(chat_access.items(), start=1):
-    title = str(info.get("title") or "").strip()
-    title_part = f"<b>{html.escape(title)}</b> " if title else ""
-    in_group = bool(info.get("in_group", True))
-    presence = "Guruhda bor" if in_group else "Chiqarilgan"
+  for idx, cid in enumerate(sorted(known_ids), start=1):
+    info = chat_access.get(cid, {})
+    live = await fetch_live_chat_info(cid)
+
+    if live:
+      title = live["title"] or str(info.get("title") or f"Guruh ({cid})")
+      username = live["username"]
+      presence = "Guruhda bor"
+    else:
+      title = str(info.get("title") or f"Guruh ({cid})")
+      username = str(info.get("username") or "").strip().lstrip("@")
+      presence = "Chiqarilgan / Kirib bo'lmadi"
+
+    safe_title = html.escape(title)
+    if username:
+      link_line = f"   • Havola: https://t.me/{html.escape(username)}\n"
+    else:
+      link_line = ""
+
     active = is_group_active(cid)
     status_label = "Uyg'oq 🟢" if active else "Uxlayabdi 😴"
     expiry_str = get_expiry_text(cid)
 
     lines.append(
-        f"{idx}. {title_part}(<code>{cid}</code>)\n"
+        f"{idx}. <b>{safe_title}</b> (<code>{cid}</code>)\n"
+        f"{link_line}"
         f"   • Holat: <b>{status_label}</b> ({presence})\n"
         f"   • Muddat: <b>{html.escape(expiry_str)}</b>"
     )
