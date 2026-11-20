@@ -32,12 +32,10 @@ chat_access = {}
 pending_receipts = {}
 
 TARIFFS = {
-    "10d": {"label": "10 kunga", "days": 10, "price": "9 000 so'm"},
-    "1m": {"label": "1 oyga", "days": 30, "price": "29 000 so'm"},
-    "3m": {"label": "3 oyga", "days": 90, "price": "89 000 so'm"},
-    "6m": {"label": "6 oyga", "days": 180, "price": "169 000 so'm"},
-    "1y": {"label": "1 yilga", "days": 365, "price": "249 000 so'm"},
-    "life": {"label": "1 umrlikka", "days": None, "price": "499 000 so'm"},
+    "10d": {"label": "10 kunga", "days": 10, "price": "6 000 so'm"},
+    "1m": {"label": "1 oyga", "days": 30, "price": "19 000 so'm"},
+    "2m": {"label": "2 oyga", "days": 60, "price": "39 000 so'm"},
+    "3m": {"label": "3 oyga", "days": 90, "price": "59 000 so'm"},
 }
 
 CYR_TO_LAT = {
@@ -281,7 +279,7 @@ def is_group_active(chat_id: int) -> bool:
 def get_expiry_text(chat_id: int) -> str:
   info = chat_access.get(chat_id)
   if not info or not info.get("active"):
-    return "Faol emas"
+    return "Uyg'otilmagan"
   expires_at = info.get("expires_at")
   if not expires_at:
     return "Cheksiz"
@@ -314,7 +312,7 @@ async def build_activation_keyboard(chat_id: int) -> InlineKeyboardMarkup:
   )
   return InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="Aktivlashtirish", url=url)]
+          [InlineKeyboardButton(text="Uyg'otish", url=url)]
       ]
   )
 
@@ -341,18 +339,10 @@ def build_tariffs_keyboard(target_chat_id: int | None) -> InlineKeyboardMarkup:
           ],
           [
               InlineKeyboardButton(
+                  text="2 oyga", callback_data=f"tar:2m:{cid_part}"
+              ),
+              InlineKeyboardButton(
                   text="3 oyga", callback_data=f"tar:3m:{cid_part}"
-              ),
-              InlineKeyboardButton(
-                  text="6 oyga", callback_data=f"tar:6m:{cid_part}"
-              ),
-          ],
-          [
-              InlineKeyboardButton(
-                  text="1 yilga", callback_data=f"tar:1y:{cid_part}"
-              ),
-              InlineKeyboardButton(
-                  text="1 umrlikka", callback_data=f"tar:life:{cid_part}"
               ),
           ],
       ]
@@ -380,6 +370,22 @@ def build_payment_action_keyboard(
   )
 
 
+def build_admin_approve_keyboard(
+    target_cid: int, days: int | None, buyer_id: int
+) -> InlineKeyboardMarkup:
+  days_part = str(days) if days is not None else "0"
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="✅ Tasdiqlash va uyg'otish",
+                  callback_data=f"approve:{target_cid}:{days_part}:{buyer_id}",
+              )
+          ]
+      ]
+  )
+
+
 def format_tariffs_text(target_chat_id: int | None) -> str:
   group_line = (
       f"Guruh ID: <code>{target_chat_id}</code>\n\n"
@@ -389,13 +395,11 @@ def format_tariffs_text(target_chat_id: int | None) -> str:
   return (
       "Botdan foydalanish uchun to'lov qilish zarur! Iltimos, quyidagi"
       f" tariflardan birini tanlang!\n{group_line}"
-      "10 kun uchun - 9 000 so'm\n"
-      "1 oy uchun - 29 000 so'm\n"
-      "3 oy uchun - 89 000 so'm\n"
-      "6 oy uchun - 169 000 so'm\n"
-      "1 yil uchun - 249 000 so'm\n"
-      "1 umrlik uchun - 499 000 so'm!\n\n"
-      "Aktivlashtirmoqchi bo'lgan muddatingizni tanlang 👇"
+      "10 kun uchun - 6 000 so'm\n"
+      "1 oy uchun - 19 000 so'm\n"
+      "2 oy uchun - 39 000 so'm\n"
+      "3 oy uchun - 59 000 so'm!\n\n"
+      "Botni uyg'otmoqchi bo'lgan muddatingizni tanlang 👇"
   )
 
 
@@ -404,6 +408,74 @@ def build_activate_command(target_cid: int, days: int | None) -> str:
   if days is not None:
     return f"/faollashtir {cid_str} {days}"
   return f"/faollashtir {cid_str}"
+
+
+async def activate_group_and_notify(
+    target_cid: int, days: int | None, admin_user: types.User | None
+) -> str:
+  """Guruhni uyg'otadi, guruhga xabar yuboradi, pin qiladi va status matnini qaytaradi."""
+  expires_iso = None
+  if days is not None and days > 0:
+    exp_dt = datetime.now(timezone.utc) + timedelta(days=days)
+    expires_iso = exp_dt.isoformat()
+  else:
+    days = None
+
+  existing = chat_access.get(target_cid, {})
+  chat_access[target_cid] = {
+      "active": True,
+      "expires_at": expires_iso,
+      "title": existing.get("title", ""),
+  }
+  save_access()
+
+  admin_mention = format_mention_html(
+      admin_user.id if admin_user else 0,
+      {
+          "name": get_display_name(admin_user),
+          "username": admin_user.username if admin_user and admin_user.username else "",
+      },
+  )
+  if days is not None:
+    group_notice = (
+        f"Botni {admin_mention} {days} kunga uyg'otdi. Bot {days} kun"
+        " davomida uxlamasdan xizmatingizda!"
+    )
+  else:
+    group_notice = (
+        f"Botni {admin_mention} 1 umrlikka uyg'otdi. Bot bir umr"
+        " davomida uxlamasdan xizmatingizda!\n\n"
+        "Eslatma: bir umrlik tarif bot yoki ushbu guruh o'chirilguncha amal"
+        " qiladi."
+    )
+
+  group_sent = False
+  group_pinned = False
+  try:
+    sent_msg = await bot.send_message(
+        chat_id=target_cid, text=group_notice, parse_mode=ParseMode.HTML
+    )
+    group_sent = True
+    try:
+      await bot.pin_chat_message(
+          chat_id=target_cid,
+          message_id=sent_msg.message_id,
+          disable_notification=True,
+      )
+      group_pinned = True
+    except Exception:
+      group_pinned = False
+  except Exception:
+    group_sent = False
+
+  if group_sent and group_pinned:
+    return "\n📩 Guruhga xabar yuborildi va qadab (pin) qo'yildi."
+  if group_sent:
+    return (
+        "\n📩 Guruhga xabar yuborildi, lekin qadab bo'lmadi (botga pin huquqi"
+        " berilganini tekshiring)."
+    )
+  return "\n⚠️ Guruhga xabar yuborib bo'lmadi (bot guruhda bormi tekshiring)."
 
 
 def load_state() -> dict:
@@ -680,7 +752,7 @@ async def cb_select_tariff(callback: types.CallbackQuery):
               f"Guruh ID: <code>{target_cid}</code>\n"
               f"Tarif: <b>{html.escape(tariff['label'])}</b>"
               f" ({html.escape(tariff['price'])}, {days_info})\n\n"
-              f"Faollashtirish buyrug'i:\n<code>{activate_cmd}</code>"
+              f"Uyg'otish buyrug'i:\n<code>{activate_cmd}</code>"
           ),
           parse_mode=ParseMode.HTML,
       )
@@ -688,6 +760,82 @@ async def cb_select_tariff(callback: types.CallbackQuery):
       pass
 
   await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("approve:"))
+async def cb_admin_approve(callback: types.CallbackQuery):
+  if (
+      not ADMIN_ID
+      or not callback.from_user
+      or callback.from_user.id != ADMIN_ID
+  ):
+    await callback.answer("Siz admin emassiz!", show_alert=True)
+    return
+
+  parts = (callback.data or "").split(":")
+  if len(parts) != 4:
+    await callback.answer("Noto'g'ri ma'lumot", show_alert=True)
+    return
+
+  _, cid_str, days_str, buyer_str = parts
+  try:
+    target_cid = int(cid_str)
+    days_raw = int(days_str)
+    buyer_id = int(buyer_str)
+  except ValueError:
+    await callback.answer("ID formatida xatolik", show_alert=True)
+    return
+
+  if target_cid == 0:
+    await callback.answer(
+        "Guruh ID topilmadi! Qo'lda /faollashtir <guruh_id> <kun> yuboring.",
+        show_alert=True,
+    )
+    return
+
+  days = days_raw if days_raw > 0 else None
+  extra_status = await activate_group_and_notify(
+      target_cid, days, callback.from_user
+  )
+  expiry_text = get_expiry_text(target_cid)
+
+  try:
+    old_caption = callback.message.caption or ""
+    await callback.message.edit_caption(
+        caption=(
+            f"{old_caption}\n\n"
+            f"✅ <b>Tasdiqlandi va uyg'otildi!</b>\n"
+            f"Muddat: <b>{html.escape(expiry_text)}</b>"
+            f"{extra_status}"
+        ),
+        reply_markup=None,
+        parse_mode=ParseMode.HTML,
+    )
+  except Exception:
+    await callback.message.answer(
+        f"✅ Bot uyg'otildi!\n"
+        f"Chat ID: <code>{target_cid}</code>\n"
+        f"Amal qilish muddati: <b>{html.escape(expiry_text)}</b>"
+        f"{extra_status}",
+        parse_mode=ParseMode.HTML,
+    )
+
+  if buyer_id:
+    try:
+      await bot.send_message(
+          chat_id=buyer_id,
+          text=(
+              "🎉 <b>To'lovingiz tasdiqlandi va bot uyg'otildi!</b>\n"
+              f"Amal qilish muddati: <b>{html.escape(expiry_text)}</b>\n\n"
+              "Endi guruhda /next buyrug'i bilan viktorinani boshlashingiz"
+              " mumkin."
+          ),
+          parse_mode=ParseMode.HTML,
+      )
+    except Exception:
+      pass
+
+  await callback.answer("✅ Bot uyg'otildi!")
 
 
 @dp.message(Command("faollashtir"))
@@ -721,72 +869,12 @@ async def cmd_faollashtir(message: types.Message, command: CommandObject):
     except ValueError:
       days = None
 
-  expires_iso = None
-  if days is not None:
-    exp_dt = datetime.now(timezone.utc) + timedelta(days=days)
-    expires_iso = exp_dt.isoformat()
-
-  existing = chat_access.get(target_cid, {})
-  chat_access[target_cid] = {
-      "active": True,
-      "expires_at": expires_iso,
-      "title": existing.get("title", ""),
-  }
-  save_access()
-
-  admin_mention = format_mention_html(
-      message.from_user.id,
-      {
-          "name": get_display_name(message.from_user),
-          "username": message.from_user.username or "",
-      },
+  extra_status = await activate_group_and_notify(
+      target_cid, days, message.from_user
   )
-  if days is not None:
-    group_notice = (
-        f"Botni {admin_mention} {days} kunga faollashtirdi. Bot {days} kun"
-        " davomida uxlamasdan xizmatingizda!"
-    )
-  else:
-    group_notice = (
-        f"Botni {admin_mention} 1 umrlikka faollashtirdi. Bot bir umr"
-        " davomida uxlamasdan xizmatingizda!\n\n"
-        "Eslatma: bir umrlik tarif bot yoki ushbu guruh o'chirilguncha amal"
-        " qiladi."
-    )
-
-  group_sent = False
-  group_pinned = False
-  try:
-    sent_msg = await bot.send_message(
-        chat_id=target_cid, text=group_notice, parse_mode=ParseMode.HTML
-    )
-    group_sent = True
-    try:
-      await bot.pin_chat_message(
-          chat_id=target_cid,
-          message_id=sent_msg.message_id,
-          disable_notification=True,
-      )
-      group_pinned = True
-    except Exception:
-      group_pinned = False
-  except Exception:
-    group_sent = False
-
-  if group_sent and group_pinned:
-    extra_status = "\n📩 Guruhga xabar yuborildi va qadab (pin) qo'yildi."
-  elif group_sent:
-    extra_status = (
-        "\n📩 Guruhga xabar yuborildi, lekin qadab bo'lmadi (botga pin huquqi"
-        " berilganini tekshiring)."
-    )
-  else:
-    extra_status = (
-        "\n⚠️ Guruhga xabar yuborib bo'lmadi (bot guruhda bormi tekshiring)."
-    )
 
   await message.answer(
-      f"✅ Guruh faollashtirildi!\n"
+      f"✅ Bot uyg'otildi!\n"
       f"Chat ID: <code>{target_cid}</code>\n"
       f"Amal qilish muddati: <b>{html.escape(get_expiry_text(target_cid))}</b>"
       f"{extra_status}",
@@ -843,7 +931,7 @@ async def cmd_holat(message: types.Message, command: CommandObject):
   active = is_group_active(target_cid)
   await message.answer(
       f"Chat ID: <code>{target_cid}</code>\n"
-      f"Holat: <b>{'Faol' if active else 'Faol emas'}</b>\n"
+      f"Holat: <b>{'Uyg\'oq' if active else 'Uxlayabdi'}</b>\n"
       f"Muddat: <b>{html.escape(get_expiry_text(target_cid))}</b>",
       parse_mode=ParseMode.HTML,
   )
@@ -922,6 +1010,7 @@ async def handle_payment_photo(message: types.Message):
     return
   info = pending_receipts.pop(message.from_user.id, None)
   target_cid = info["chat_id"] if info else 0
+  days_val = info["days"] if info else 10
   if info:
     days_label = (
         f"{info['days']} kun" if info["days"] is not None else "Cheksiz"
@@ -930,10 +1019,10 @@ async def handle_payment_photo(message: types.Message):
     activate_cmd = build_activate_command(target_cid, info["days"])
   else:
     tariff_text = "Ko'rsatilmagan"
-    activate_cmd = build_activate_command(target_cid, 30)
+    activate_cmd = build_activate_command(target_cid, 10)
 
   await message.answer(
-      "✅ Chek/rasm qabul qilindi! Admin tekshirib, guruhni faollashtiradi."
+      "✅ Chek/rasm qabul qilindi! Admin tekshirib, botni uyg'otadi."
   )
 
   if ADMIN_ID and message.photo:
@@ -944,6 +1033,18 @@ async def handle_payment_photo(message: types.Message):
             "username": message.from_user.username or "",
         },
     )
+    approve_kb = (
+        build_admin_approve_keyboard(
+            target_cid, days_val, message.from_user.id
+        )
+        if target_cid != 0
+        else None
+    )
+    extra_line = (
+        "\n\nTasdiqlash uchun tugmani bosing 👇"
+        if target_cid != 0
+        else f"\n\nUyg'otish:\n<code>{activate_cmd}</code>"
+    )
     try:
       await bot.send_photo(
           chat_id=ADMIN_ID,
@@ -952,9 +1053,10 @@ async def handle_payment_photo(message: types.Message):
               "🧾 <b>Yangi to'lov cheki!</b>\n\n"
               f"Foydalanuvchi: {buyer_mention}\n"
               f"Guruh ID: <code>{target_cid}</code>\n"
-              f"Tarif: <b>{html.escape(tariff_text)}</b>\n\n"
-              f"Faollashtirish:\n<code>{activate_cmd}</code>"
+              f"Tarif: <b>{html.escape(tariff_text)}</b>"
+              f"{extra_line}"
           ),
+          reply_markup=approve_kb,
           parse_mode=ParseMode.HTML,
       )
     except Exception:
