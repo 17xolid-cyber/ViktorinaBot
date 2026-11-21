@@ -1,43 +1,73 @@
 [
   {
     "question": "1) Asharai mubashshara (jannat bashorati berilgan 10 sahoba) dan biri bo'lgan birinchi xalifa kim?",
-    "answer": "Abu Bakr"
+    "answer": [
+      "Abu Bakr Siddiq rodiyallohu anhu",
+      "Abu Bakr"
+    ]
   },
   {
     "question": "2) Ikkinchi xalifa va 'Foruq' laqabi bilan mashhur sahoba kim?",
-    "answer": "Umar"
+    "answer": [
+      "Umar ibn Hattob rodiyallohu anhu",
+      "Umar"
+    ]
   },
   {
     "question": "3) Qur'oni Karimni bitta umumiy mushafga jamlash ishlarini boshqargan uchinchi xalifa kim?",
-    "answer": "Usmon"
+    "answer": [
+      "Usmon ibn Affon rodiyallohu anhu",
+      "Usmon"
+    ]
   },
   {
     "question": "4) Payg'ambarimiz sollallohu alayhi vasallamning amakivachchalari va kuyovlari bo'lgan to'rtinchi xalifa kim?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "5) Rasululloh sollallohu alayhi vasallamning 'Ummatning omonati' deb atagan sahobalari kim?",
-    "answer": "Abu Ubayda"
+    "answer": [
+      "Abu Ubayda ibn Jarroh rodiyallohu anhu",
+      "Abu Ubayda"
+    ]
   },
   {
     "question": "6) Payg'ambarimizning shaxsiy xizmatkorlari bo'lib, ko'p hadis rivoyat qilgan sahoba kim?",
-    "answer": "Anas ibn Molik"
+    "answer": [
+      "Anas ibn Molik rodiyallohu anhu",
+      "Anas ibn Molik"
+    ]
   },
   {
     "question": "7) Eng ko'p hadis rivoyat qilgan sahoba kim?",
-    "answer": "Abu Hurayra"
+    "answer": [
+      "Abu Hurayra rodiyallohu anhu",
+      "Abu Hurayra"
+    ]
   },
   {
     "question": "8) Rasululloh sollallohu alayhi vasallamning sirlari saqlovchisi deb tanilgan sahoba kim?",
-    "answer": "Huzayfa ibn Yamon"
+    "answer": [
+      "Huzayfa ibn Yamon rodiyallohu anhu",
+      "Huzayfa ibn Yamon"
+    ]
   },
   {
     "question": "9) Payg'ambarimizning birinchi muazzinlari bo'lgan sahoba kim?",
-    "answer": "Bilol"
+    "answer": [
+      "Bilol ibn Raboh rodiyallohu anhu",
+      "Bilol"
+    ]
   },
   {
     "question": "10) Islomda ilk bor Qur'onni oshkora o'qigan sahoba kim?",
-    "answer": "Abdulloh ibn Mas'ud"
+    "answer": [
+      "Abdulloh ibn Mas'ud rodiyallohu anhu",
+      "Abdulloh ibn Mas'ud"
+    ]
   },
   {
     "question": "11) Madinaga birinchi hijrat qilgan sahobalardan biri, Mus'ab ibn Umayr qanday vazifada yuborilgan?",
@@ -45,43 +75,74 @@
   },
   {
     "question": "12) Xandaq g'azotida xandaq qazish fikrini bergan sahoba kim?",
-    "answer": "Salmon Forsiy"
+    "answer": [
+      "Salmon Forsiy rodiyallohu anhu",
+      "Salmon Forsiy"
+    ]
   },
   {
     "question": "13) Rasululloh sollallohu alayhi vasallamning shoirlari deb tanilgan sahoba kim?",
-    "answer": "Hasson ibn Sobit"
+    "answer": [
+      "Hasson ibn Sobit rodiyallohu anhu",
+      "Hasson ibn Sobit"
+    ]
   },
   {
     "question": "14) Vahiy kotiblari orasida ko'p xizmat qilgan, Qur'on jamlanishiga boshchilik qilgan sahoba kim?",
-    "answer": "Zayd ibn Sobit"
+    "answer": [
+      "Zayd ibn Sobit rodiyallohu anhu",
+      "Zayd ibn Sobit"
+    ]
   },
   {
     "question": "15) Badr g'azotida ishtirok etgan, keyinchalik 'Sayfulloh' laqabini olgan sarkarda kim?",
-    "answer": "Xolid ibn Valid"
+    "answer": [
+      "Xolid ibn Valid rodiyallohu anhu",
+      "Xolid ibn Valid"
+    ]
   },
   {
     "question": "16) Xolid ibn Validga 'Sayfulloh' (Allohning qilichi) laqabini bergan zot kim?",
-    "answer": "Muhammad"
+    "answer": [
+      "Muhammad sollallohu alayhi vasallam",
+      "Muhammad"
+    ]
   },
   {
     "question": "17) Rasululloh sollallohu alayhi vasallamning amakilari va 'Asadulloh' laqabli sahoba kim?",
-    "answer": "Hamza"
+    "answer": [
+      "Hamza ibn Abdulmuttalib rodiyallohu anhu",
+      "Hamza"
+    ]
   },
   {
     "question": "18) Hijrat kechasi Rasululloh sollallohu alayhi vasallamning o'rinlarida yotgan sahoba kim?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "19) Savr g'orida Rasululloh sollallohu alayhi vasallamga hamroh bo'lgan sahoba kim?",
-    "answer": "Abu Bakr"
+    "answer": [
+      "Abu Bakr Siddiq rodiyallohu anhu",
+      "Abu Bakr"
+    ]
   },
   {
     "question": "20) Savr g'orida oziq-ovqat va xabar yetkazib turgan Abu Bakrning qizlari kim?",
-    "answer": "Asmo"
+    "answer": [
+      "Asmo onamiz",
+      "Asmo rodiyallohu anho",
+      "Asmo"
+    ]
   },
   {
     "question": "21) Madinada Rasululloh sollallohu alayhi vasallamning tuyalari cho'kkan joy hovlisida bo'lgan sahoba kim?",
-    "answer": "Abu Ayyub Ansoriy"
+    "answer": [
+      "Abu Ayyub Ansoriy rodiyallohu anhu",
+      "Abu Ayyub Ansoriy"
+    ]
   },
   {
     "question": "22) Tijoratda nihoyatda barakali va saxovatli bo'lgan ashobdan biri, Abdurahmon ibn Avf qaysi shaharda boyib ketgan?",
@@ -89,83 +150,146 @@
   },
   {
     "question": "23) Badr g'azotida Rasululloh sollallohu alayhi vasallamning 'Men uchun otam-onam fido bo'lsin' degan sahobalari kim?",
-    "answer": "Sa'd ibn Muoz"
+    "answer": [
+      "Sa'd ibn Muoz rodiyallohu anhu",
+      "Sa'd ibn Muoz"
+    ]
   },
   {
     "question": "24) Uhud g'azotida Rasululloh sollallohu alayhi vasallamni himoya qilib, qo'llari shol bo'lgan sahoba kim?",
-    "answer": "Talha"
+    "answer": [
+      "Talha ibn Ubaydulloh rodiyallohu anhu",
+      "Talha"
+    ]
   },
   {
     "question": "25) Rasululloh sollallohu alayhi vasallam 'Har bir payg'ambarning havoriysi bor, mening havoriym ...' degan sahobalari kim?",
-    "answer": "Zubayr"
+    "answer": [
+      "Zubayr ibn Avvom rodiyallohu anhu",
+      "Zubayr"
+    ]
   },
   {
     "question": "26) Tabuk g'azotida butun mol-mulkini olib kelgan sahoba kim?",
-    "answer": "Abu Bakr"
+    "answer": [
+      "Abu Bakr Siddiq rodiyallohu anhu",
+      "Abu Bakr"
+    ]
   },
   {
     "question": "27) Tabuk g'azotida molining yarmini olib kelgan sahoba kim?",
-    "answer": "Umar"
+    "answer": [
+      "Umar ibn Hattob rodiyallohu anhu",
+      "Umar"
+    ]
   },
   {
     "question": "28) Tabuk g'azotiga katta mablag' va ulovlar ehson qilgan sahoba kim?",
-    "answer": "Usmon"
+    "answer": [
+      "Usmon ibn Affon rodiyallohu anhu",
+      "Usmon"
+    ]
   },
   {
     "question": "29) Nabaviy masjid qudug'ini sotib olib, musulmonlarga vaqf qilgan sahoba kim?",
-    "answer": "Usmon"
+    "answer": [
+      "Usmon ibn Affon rodiyallohu anhu",
+      "Usmon"
+    ]
   },
   {
     "question": "30) Islomda birinchi bo'lib shahid bo'lgan ayol sahoba kim?",
-    "answer": "Sumayya"
+    "answer": [
+      "Sumayya onamiz",
+      "Sumayya rodiyallohu anho",
+      "Sumayya"
+    ]
   },
   {
     "question": "31) Sumayya roziyallohu anhoning turmush o'rtoqlari, ilk shahidlardan biri kim?",
-    "answer": "Yosir"
+    "answer": [
+      "Yosir rodiyallohu anhu",
+      "Yosir"
+    ]
   },
   {
     "question": "32) Rasululloh sollallohu alayhi vasallamning qizlari, Usmon ibn Affonga turmushga chiqqan sahobiyalar kimlar (ikkalasidan biri)?",
-    "answer": "Ruqayya"
+    "answer": [
+      "Ruqayya onamiz",
+      "Ruqayya rodiyallohu anho",
+      "Ruqayya"
+    ]
   },
   {
     "question": "33) Rasululloh sollallohu alayhi vasallamning kenja qizlari va Alining rafiqalari kim?",
-    "answer": "Fotima"
+    "answer": [
+      "Fotima onamiz",
+      "Fotima rodiyallohu anho",
+      "Fotima"
+    ]
   },
   {
     "question": "34) Jannat yoshlarining sayyidlari deb zikr qilingan ikki aka-uka sahobalar kimlar (birini yozing)?",
-    "answer": "Hasan"
+    "answer": [
+      "Hasan ibn Ali rodiyallohu anhu",
+      "Hasan"
+    ]
   },
   {
     "question": "35) Rasululloh sollallohu alayhi vasallamning suyukli nabiralari Husaynning akalari kim?",
-    "answer": "Hasan"
+    "answer": [
+      "Hasan ibn Ali rodiyallohu anhu",
+      "Hasan"
+    ]
   },
   {
     "question": "36) Elchilikka borib, Hudaybiya sulhida mushriklar tomonidan ushlab qolingan sahoba kim?",
-    "answer": "Usmon"
+    "answer": [
+      "Usmon ibn Affon rodiyallohu anhu",
+      "Usmon"
+    ]
   },
   {
     "question": "37) Makka fathida Rasululloh sollallohu alayhi vasallamning yonlarida yurgan, Usoma ibn Zaydning otalari kim?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "38) Qur'onda nomi zikr etilgan yagona sahoba kim?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "39) Mu'ta g'azotida ketma-ket bayroqni olgan uch sarkardaning birinchisi kim?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "40) Mu'ta g'azotida ikkinchi bo'lib bayroqni olgan sahoba kim?",
-    "answer": "Ja'far"
+    "answer": [
+      "Ja'far ibn Abu Tolib rodiyallohu anhu",
+      "Ja'far"
+    ]
   },
   {
     "question": "41) Mu'ta g'azotida uchinchi bo'lib bayroqni olgan sahoba kim?",
-    "answer": "Abdulloh ibn Ravoha"
+    "answer": [
+      "Abdulloh ibn Ravoha rodiyallohu anhu",
+      "Abdulloh ibn Ravoha"
+    ]
   },
   {
     "question": "42) Habashistonga hijrat qilgan musulmonlar nomidan Najoshiy huzurida so'zlagan notiq sahoba kim?",
-    "answer": "Ja'far"
+    "answer": [
+      "Ja'far ibn Abu Tolib rodiyallohu anhu",
+      "Ja'far"
+    ]
   },
   {
     "question": "43) Rasululloh sollallohu alayhi vasallamning kamondoshlari orasida mohir bo'lgan Sa'd ibn Abu Vaqqos qaysi g'azotda ilk o'q uzgan?",
@@ -173,27 +297,52 @@
   },
   {
     "question": "44) Fiqh ilmida chuqur bilimi bilan tanilgan, Madinadagi yetti faqihdan biriga ustoz bo'lgan onamiz kim?",
-    "answer": "Oysha"
+    "answer": [
+      "Oysha onamiz",
+      "Oysha rodiyallohu anho",
+      "Oysha",
+      "Oisha"
+    ]
   },
   {
     "question": "45) Eng ko'p hadis rivoyat qilgan ayol sahoba kim?",
-    "answer": "Oysha"
+    "answer": [
+      "Oysha onamiz",
+      "Oysha rodiyallohu anho",
+      "Oysha",
+      "Oisha"
+    ]
   },
   {
     "question": "46) Rasululloh sollallohu alayhi vasallamning 'Qalbimning kaliti' deb atagan xotiralari boy sahoba kim?",
-    "answer": "Oysha"
+    "answer": [
+      "Oysha onamiz",
+      "Oysha rodiyallohu anho",
+      "Oysha",
+      "Oisha"
+    ]
   },
   {
     "question": "47) Uhudda Rasululloh sollallohu alayhi vasallamni qalqondek himoya qilgan ayol sahoba kim?",
-    "answer": "Nusayba"
+    "answer": [
+      "Nusayba onamiz",
+      "Nusayba rodiyallohu anho",
+      "Nusayba"
+    ]
   },
   {
     "question": "48) Xaybar fathi paytida Rasululloh sollallohu alayhi vasallam bayroqni kimga berishlarini aytganlar?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "49) Makka davrida musulmonlar yashirin yig'ilgan uyi bilan mashhur sahoba kim?",
-    "answer": "Arqam"
+    "answer": [
+      "Arqam ibn Abil Arqam rodiyallohu anhu",
+      "Arqam"
+    ]
   },
   {
     "question": "50) Aqaba bay'atida ishtirok etgan madinaliklar qaysi qabilalardan edi (biri)?",
@@ -209,23 +358,40 @@
   },
   {
     "question": "53) Rasululloh sollallohu alayhi vasallamning birinchi zavjalari kim?",
-    "answer": "Xadicha"
+    "answer": [
+      "Xadicha onamiz",
+      "Xadicha rodiyallohu anho",
+      "Xadicha"
+    ]
   },
   {
     "question": "54) Islomni birinchi bo'lib qabul qilgan ayol kim?",
-    "answer": "Xadicha"
+    "answer": [
+      "Xadicha onamiz",
+      "Xadicha rodiyallohu anho",
+      "Xadicha"
+    ]
   },
   {
     "question": "55) Islomni birinchi bo'lib qabul qilgan erkak sahoba kim?",
-    "answer": "Abu Bakr"
+    "answer": [
+      "Abu Bakr Siddiq rodiyallohu anhu",
+      "Abu Bakr"
+    ]
   },
   {
     "question": "56) Islomni birinchi bo'lib qabul qilgan yosh bola sahoba kim?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "57) Islomni birinchi bo'lib qabul qilgan ozod qilingan qul (mavlo) kim?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "58) Rasululloh sollallohu alayhi vasallamning 'Mening ummatimning har bir sahobasi yulduz kabidir' degan ma'nodagi hadislarida nimaga ergashish ta'kidlanadi?",
@@ -233,7 +399,10 @@
   },
   {
     "question": "59) Madinada muhojirlar bilan ansorlarni kim birodarlashtirgan?",
-    "answer": "Muhammad"
+    "answer": [
+      "Muhammad sollallohu alayhi vasallam",
+      "Muhammad"
+    ]
   },
   {
     "question": "60) Sahobalar kimlar: Rasululloh sollallohu alayhi vasallamni iymon bilan ko'rgan va iymon bilan vafot etgan zotlarmi?",
@@ -249,7 +418,10 @@
   },
   {
     "question": "63) Payg'ambarimiz sollallohu alayhi vasallamning onalari kim?",
-    "answer": "Omina"
+    "answer": [
+      "Omina onamiz",
+      "Omina"
+    ]
   },
   {
     "question": "64) Payg'ambarimiz sollallohu alayhi vasallamning bobolari kim?",
@@ -257,7 +429,10 @@
   },
   {
     "question": "65) Payg'ambarimiz sollallohu alayhi vasallamga sut bergan emizuvchi onalari kim?",
-    "answer": "Halima"
+    "answer": [
+      "Halima onamiz",
+      "Halima"
+    ]
   },
   {
     "question": "66) Halima onamiz qaysi qabiladan edilar?",
@@ -309,7 +484,10 @@
   },
   {
     "question": "78) Payg'ambarimiz sollallohu alayhi vasallam Toifga da'vat uchun borganlarida kim hamroh bo'lgan?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "79) Isro va Me'roj hodisasi qaysi shahardan boshlangan?",
@@ -349,7 +527,10 @@
   },
   {
     "question": "88) Rasululloh sollallohu alayhi vasallamning Xadicha onamizdan bo'lmagan yagona farzandlari kim?",
-    "answer": "Ibrohim"
+    "answer": [
+      "Ibrohim alayhissalom",
+      "Ibrohim"
+    ]
   },
   {
     "question": "89) Qaysi shahar fath etilgach, Ka'ba atrofida 360 ta but sindirildi?",
@@ -413,7 +594,12 @@
   },
   {
     "question": "104) Rasululloh sollallohu alayhi vasallamning oxirgi kasalliklari kimning uyida o'tdi?",
-    "answer": "Oysha"
+    "answer": [
+      "Oysha onamiz",
+      "Oysha rodiyallohu anho",
+      "Oysha",
+      "Oisha"
+    ]
   },
   {
     "question": "105) Siyrat ilmida Rasululloh sollallohu alayhi vasallamning hayot yo'llari o'rganiladimi?",
@@ -421,11 +607,17 @@
   },
   {
     "question": "106) Birinchi inson va birinchi payg'ambar kim?",
-    "answer": "Odam"
+    "answer": [
+      "Odam alayhissalom",
+      "Odam"
+    ]
   },
   {
     "question": "107) Odam alayhissalomning juftlari kim?",
-    "answer": "Havvo"
+    "answer": [
+      "Havvo onamiz",
+      "Havvo"
+    ]
   },
   {
     "question": "108) Odam alayhissalomning qaysi ikki o'g'li qurbonlik keltirgan (birini yozing)?",
@@ -433,7 +625,10 @@
   },
   {
     "question": "109) Kema qurib, ulkan to'fondan najot topgan payg'ambar kim?",
-    "answer": "Nuh"
+    "answer": [
+      "Nuh alayhissalom",
+      "Nuh"
+    ]
   },
   {
     "question": "110) Nuh alayhissalom necha yil o'z qavmlarini da'vat qildilar?",
@@ -441,35 +636,59 @@
   },
   {
     "question": "111) Od qavmiga yuborilgan payg'ambar kim?",
-    "answer": "Hud"
+    "answer": [
+      "Hud alayhissalom",
+      "Hud"
+    ]
   },
   {
     "question": "112) Samud qavmiga yuborilgan va tuya mo'jizasi berilgan payg'ambar kim?",
-    "answer": "Solih"
+    "answer": [
+      "Solih alayhissalom",
+      "Solih"
+    ]
   },
   {
     "question": "113) 'Xalilulloh' (Allohning do'sti) laqabli ulug' payg'ambar kim?",
-    "answer": "Ibrohim"
+    "answer": [
+      "Ibrohim alayhissalom",
+      "Ibrohim"
+    ]
   },
   {
     "question": "114) Butlarni sindirgan va olovga tashlanganda olov salqin bo'lgan payg'ambar kim?",
-    "answer": "Ibrohim"
+    "answer": [
+      "Ibrohim alayhissalom",
+      "Ibrohim"
+    ]
   },
   {
     "question": "115) Zamzam bulog'i paydo bo'lishi bilan bog'liq go'dak payg'ambar kim?",
-    "answer": "Ismoil"
+    "answer": [
+      "Ismoil alayhissalom",
+      "Ismoil"
+    ]
   },
   {
     "question": "116) Ibrohim alayhissalomning Ismoildan keyingi o'g'illari, u ham payg'ambar bo'lgan zot kim?",
-    "answer": "Is'hoq"
+    "answer": [
+      "Is'hoq alayhissalom",
+      "Is'hoq"
+    ]
   },
   {
     "question": "117) Is'hoq alayhissalomning o'g'illari, 'Isroil' laqabli payg'ambar kim?",
-    "answer": "Ya'qub"
+    "answer": [
+      "Ya'qub alayhissalom",
+      "Ya'qub"
+    ]
   },
   {
     "question": "118) Tush ta'biri ilmi berilgan, Misr xazinalariga bosh bo'lgan payg'ambar kim?",
-    "answer": "Yusuf"
+    "answer": [
+      "Yusuf alayhissalom",
+      "Yusuf"
+    ]
   },
   {
     "question": "119) Yusuf alayhissalomni quduqqa tashlagan aka-ukalar necha kishi edi?",
@@ -477,31 +696,52 @@
   },
   {
     "question": "120) Lut qavmiga yuborilgan payg'ambar kim?",
-    "answer": "Lut"
+    "answer": [
+      "Lut alayhissalom",
+      "Lut"
+    ]
   },
   {
     "question": "121) Madyan ahliga yuborilgan, 'Payg'ambarlar xatibi' deb atalgan payg'ambar kim?",
-    "answer": "Shuayb"
+    "answer": [
+      "Shuayb alayhissalom",
+      "Shuayb"
+    ]
   },
   {
     "question": "122) Og'ir kasallikni sabr bilan yenggan payg'ambar kim?",
-    "answer": "Ayyub"
+    "answer": [
+      "Ayyub alayhissalom",
+      "Ayyub"
+    ]
   },
   {
     "question": "123) 'Kalimulloh' (Alloh bilan bevosita so'zlashgan) payg'ambar kim?",
-    "answer": "Muso"
+    "answer": [
+      "Muso alayhissalom",
+      "Muso"
+    ]
   },
   {
     "question": "124) Fir'avn huzuriga yuborilgan, asosi ilonga aylangan payg'ambar kim?",
-    "answer": "Muso"
+    "answer": [
+      "Muso alayhissalom",
+      "Muso"
+    ]
   },
   {
     "question": "125) Muso alayhissalomning akalari va yordamchi qilib so'ralgan payg'ambar kim?",
-    "answer": "Horun"
+    "answer": [
+      "Horun alayhissalom",
+      "Horun"
+    ]
   },
   {
     "question": "126) Katta baliq (nahang) qornida bo'lgan payg'ambar kim?",
-    "answer": "Yunus"
+    "answer": [
+      "Yunus alayhissalom",
+      "Yunus"
+    ]
   },
   {
     "question": "127) Yunus alayhissalom qaysi zikrni ko'p aytganlar: 'La ilaha illa anta subhanaka inni kuntu minaz-zolimin' — bu ...?",
@@ -509,11 +749,17 @@
   },
   {
     "question": "128) Temirni qo'lda yumshatish mo'jizasi berilgan, Zabur nozil bo'lgan payg'ambar kim?",
-    "answer": "Dovud"
+    "answer": [
+      "Dovud alayhissalom",
+      "Dovud"
+    ]
   },
   {
     "question": "129) Shamolga, jinlarga va qushlar tilini bilishga hukmronlik berilgan payg'ambar kim?",
-    "answer": "Sulaymon"
+    "answer": [
+      "Sulaymon alayhissalom",
+      "Sulaymon"
+    ]
   },
   {
     "question": "130) Sulaymon alayhissalomga xabar keltirgan qush qaysi?",
@@ -525,11 +771,17 @@
   },
   {
     "question": "132) Otashga sig'inuvchi qavmga yuborilgan payg'ambar kim?",
-    "answer": "Ilyos"
+    "answer": [
+      "Ilyos alayhissalom",
+      "Ilyos"
+    ]
   },
   {
     "question": "133) Ilyos alayhissalomdan keyin kelgan payg'ambar kim?",
-    "answer": "Al-Yasa"
+    "answer": [
+      "Al-Yasa alayhissalom",
+      "Al-Yasa"
+    ]
   },
   {
     "question": "134) Zul-Kifl alayhissalom qanday sifatlari bilan maqtalganlar?",
@@ -537,19 +789,31 @@
   },
   {
     "question": "135) Yahyo alayhissalomning otalari bo'lgan keksa payg'ambar kim?",
-    "answer": "Zakariyo"
+    "answer": [
+      "Zakariyo alayhissalom",
+      "Zakariyo"
+    ]
   },
   {
     "question": "136) Otasiz dunyoga kelgan, beshikda gapirgan va Injil berilgan payg'ambar kim?",
-    "answer": "Iso"
+    "answer": [
+      "Iso alayhissalom",
+      "Iso"
+    ]
   },
   {
     "question": "137) Iso alayhissalomning onalari kim?",
-    "answer": "Maryam"
+    "answer": [
+      "Maryam onamiz",
+      "Maryam"
+    ]
   },
   {
     "question": "138) Payg'ambarlarning eng oxirgisi va muhrlovchisi kim?",
-    "answer": "Muhammad"
+    "answer": [
+      "Muhammad sollallohu alayhi vasallam",
+      "Muhammad"
+    ]
   },
   {
     "question": "139) Ulul-azm payg'ambarlar nechta?",
@@ -561,15 +825,24 @@
   },
   {
     "question": "141) Qaysi payg'ambar qavmi tavba qilgach, azobdan qutulib qolgan?",
-    "answer": "Yunus"
+    "answer": [
+      "Yunus alayhissalom",
+      "Yunus"
+    ]
   },
   {
     "question": "142) Hizr alayhissalom bilan safar qilgan payg'ambar kim?",
-    "answer": "Muso"
+    "answer": [
+      "Muso alayhissalom",
+      "Muso"
+    ]
   },
   {
     "question": "143) Qaysi payg'ambar yoshligida hikmat berilgan zot sifatida Qur'onda zikr etilgan?",
-    "answer": "Yahyo"
+    "answer": [
+      "Yahyo alayhissalom",
+      "Yahyo"
+    ]
   },
   {
     "question": "144) Xizr alayhissalomning ilmi nimaga asoslangan edi?",
@@ -705,11 +978,17 @@
   },
   {
     "question": "177) Qur'onda nomi aniq zikr etilgan yagona sahoba Zayd ibn Horisa bo'lsa, ayollardan kimning ismi zikr etilgan?",
-    "answer": "Maryam"
+    "answer": [
+      "Maryam onamiz",
+      "Maryam"
+    ]
   },
   {
     "question": "178) Qaysi surada Yusuf alayhissalomning qissasi batafsil kelgan?",
-    "answer": "Yusuf"
+    "answer": [
+      "Yusuf alayhissalom",
+      "Yusuf"
+    ]
   },
   {
     "question": "179) Yusuf surasida tushdagi quyosh, oy va yulduzlar kimlarga ishora edi?",
@@ -773,7 +1052,10 @@
   },
   {
     "question": "194) Uhud g'azotida shahid bo'lgan ulug' amaki sahoba kim?",
-    "answer": "Hamza"
+    "answer": [
+      "Hamza ibn Abdulmuttalib rodiyallohu anhu",
+      "Hamza"
+    ]
   },
   {
     "question": "195) Xandaq (Ahzob) g'azoti qaysi hijriy yilda bo'ldi?",
@@ -793,7 +1075,10 @@
   },
   {
     "question": "199) Xaybar qal'alarini fath etishda bayroq kimga topshirildi?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "200) Mu'ta g'azoti qaysi hijriy yilda bo'ldi?",
@@ -805,7 +1090,10 @@
   },
   {
     "question": "202) Mu'ta g'azotida qo'shinni omon olib chiqishda mahorat ko'rsatgan sarkarda kim?",
-    "answer": "Xolid ibn Valid"
+    "answer": [
+      "Xolid ibn Valid rodiyallohu anhu",
+      "Xolid ibn Valid"
+    ]
   },
   {
     "question": "203) Makka fathidan keyin bo'lib o'tgan, vodiy nomi bilan atalgan g'azot qaysi?",
@@ -901,11 +1189,17 @@
   },
   {
     "question": "226) Rasululloh sollallohu alayhi vasallamning 'Haq bilan botilni ajratuvchi' deb maqtagan sahobalari kim?",
-    "answer": "Umar"
+    "answer": [
+      "Umar ibn Hattob rodiyallohu anhu",
+      "Umar"
+    ]
   },
   {
     "question": "227) Ikki marta Habashistonga, keyin Madinaga hijrat qilgan sahobalardan biri kim?",
-    "answer": "Usmon"
+    "answer": [
+      "Usmon ibn Affon rodiyallohu anhu",
+      "Usmon"
+    ]
   },
   {
     "question": "228) Payg'ambarimiz sollallohu alayhi vasallamning 'Jannatda menga eng yaqin bo'ladiganlaringiz — axloqi eng go'zallaridir' degan so'zlari qaysi fazilatga qaratilgan?",
@@ -917,7 +1211,10 @@
   },
   {
     "question": "230) Sahobalar orasida savol berishda odob va ilmga intilishi bilan tanilgan yosh sahobalardan biri kim?",
-    "answer": "Abdulloh ibn Abbos"
+    "answer": [
+      "Abdulloh ibn Abbos rodiyallohu anhu",
+      "Abdulloh ibn Abbos"
+    ]
   },
   {
     "question": "231) Rasululloh sollallohu alayhi vasallam Abdulloh ibn Abbos haqlarida qanday duo qilganlar?",
@@ -961,11 +1258,17 @@
   },
   {
     "question": "241) Hijratdan oldin Rasululloh sollallohu alayhi vasallam omonat egalariga omonatlarni qaytarishni kimga topshirdilar?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "242) Hijrat paytida yo'l boshlovchi qilib tanlangan tajribali kishi kim edi?",
-    "answer": "Abdulloh ibn Urayqit"
+    "answer": [
+      "Abdulloh ibn Urayqit",
+      "Abdulloh ibn Urayqit"
+    ]
   },
   {
     "question": "243) Madinaga kirib kelganlarida ayollar va bolalar qanday qo'shiq bilan kutib oldilar?",
@@ -993,7 +1296,10 @@
   },
   {
     "question": "249) Payg'ambarimiz sollallohu alayhi vasallamning kunyalari nima edi?",
-    "answer": "Abul Qosim"
+    "answer": [
+      "Abul Qosim sollallohu alayhi vasallam",
+      "Abul Qosim"
+    ]
   },
   {
     "question": "250) Payg'ambarimiz sollallohu alayhi vasallamning sut ukalari kimlar edi (biri)?",
@@ -1041,7 +1347,10 @@
   },
   {
     "question": "261) Zakariyo alayhissalomning o'g'illari kim?",
-    "answer": "Yahyo"
+    "answer": [
+      "Yahyo alayhissalom",
+      "Yahyo"
+    ]
   },
   {
     "question": "262) Iso alayhissalom qiyomatga yaqin yer yuziga qayta tushadilarmi?",
@@ -1505,7 +1814,10 @@
   },
   {
     "question": "377) Payg'ambarimiz sollallohu alayhi vasallamning 'Haq bilan botilni ajratuvchi' laqabli sahobalari kim?",
-    "answer": "Umar"
+    "answer": [
+      "Umar ibn Hattob rodiyallohu anhu",
+      "Umar"
+    ]
   },
   {
     "question": "378) Madinaga birinchi hijrat qilgan sahobalardan biri, islomga da'vat qilish uchun yuborilgan zot kim?",
@@ -1513,103 +1825,183 @@
   },
   {
     "question": "379) Rasululloh sollallohu alayhi vasallamning shoirlari bo'lgan ansoriy sahoba kim?",
-    "answer": "Hasson ibn Sobit"
+    "answer": [
+      "Hasson ibn Sobit rodiyallohu anhu",
+      "Hasson ibn Sobit"
+    ]
   },
   {
     "question": "380) Savr g'orida Rasululloh sollallohu alayhi vasallamga hamrohlik qilgan siddiq sahoba kim?",
-    "answer": "Abu Bakr"
+    "answer": [
+      "Abu Bakr Siddiq rodiyallohu anhu",
+      "Abu Bakr"
+    ]
   },
   {
     "question": "381) Hijrat kechasi Rasululloh sollallohu alayhi vasallamning o'rinlarida yotgan sahoba kim?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "382) Rasululloh sollallohu alayhi vasallamning birinchi muazzinlari kim edi?",
-    "answer": "Bilol"
+    "answer": [
+      "Bilol ibn Raboh rodiyallohu anhu",
+      "Bilol"
+    ]
   },
   {
     "question": "383) Xandaq g'azotida xandaq qazish taklifini bergan sahoba kim?",
-    "answer": "Salmon Forsiy"
+    "answer": [
+      "Salmon Forsiy rodiyallohu anhu",
+      "Salmon Forsiy"
+    ]
   },
   {
     "question": "384) Rasululloh sollallohu alayhi vasallamning sirlari saqlovchisi deb tanilgan sahoba kim?",
-    "answer": "Huzayfa ibn Yamon"
+    "answer": [
+      "Huzayfa ibn Yamon rodiyallohu anhu",
+      "Huzayfa ibn Yamon"
+    ]
   },
   {
     "question": "385) Eng ko'p hadis rivoyat qilgan sahoba kim?",
-    "answer": "Abu Hurayra"
+    "answer": [
+      "Abu Hurayra rodiyallohu anhu",
+      "Abu Hurayra"
+    ]
   },
   {
     "question": "386) Payg'ambarimiz sollallohu alayhi vasallamning xizmatlarida ko'p yillar bo'lgan sahoba kim?",
-    "answer": "Anas ibn Molik"
+    "answer": [
+      "Anas ibn Molik rodiyallohu anhu",
+      "Anas ibn Molik"
+    ]
   },
   {
     "question": "387) Qur'onni jamoat oldida ilk bor oshkora o'qigan sahobalardan biri kim?",
-    "answer": "Abdulloh ibn Mas'ud"
+    "answer": [
+      "Abdulloh ibn Mas'ud rodiyallohu anhu",
+      "Abdulloh ibn Mas'ud"
+    ]
   },
   {
     "question": "388) Rasululloh sollallohu alayhi vasallamning 'Ummatning omonati' deb atagan sahobalari kim?",
-    "answer": "Abu Ubayda"
+    "answer": [
+      "Abu Ubayda ibn Jarroh rodiyallohu anhu",
+      "Abu Ubayda"
+    ]
   },
   {
     "question": "389) Xolid ibn Validga 'Sayfulloh' laqabini bergan zot kim?",
-    "answer": "Muhammad"
+    "answer": [
+      "Muhammad sollallohu alayhi vasallam",
+      "Muhammad"
+    ]
   },
   {
     "question": "390) Rasululloh sollallohu alayhi vasallamning 'Asadulloh' laqabli amakilari kim?",
-    "answer": "Hamza"
+    "answer": [
+      "Hamza ibn Abdulmuttalib rodiyallohu anhu",
+      "Hamza"
+    ]
   },
   {
     "question": "391) Islomda birinchi shahid bo'lgan ayol sahoba kim?",
-    "answer": "Sumayya"
+    "answer": [
+      "Sumayya onamiz",
+      "Sumayya rodiyallohu anho",
+      "Sumayya"
+    ]
   },
   {
     "question": "392) Sumayya roziyallohu anhoning turmush o'rtoqlari, ilk shahid sahobalardan biri kim?",
-    "answer": "Yosir"
+    "answer": [
+      "Yosir rodiyallohu anhu",
+      "Yosir"
+    ]
   },
   {
     "question": "393) Rasululloh sollallohu alayhi vasallamning kenja qizlari kim?",
-    "answer": "Fotima"
+    "answer": [
+      "Fotima onamiz",
+      "Fotima rodiyallohu anho",
+      "Fotima"
+    ]
   },
   {
     "question": "394) Rasululloh sollallohu alayhi vasallamning nabiralari Husaynning akalari kim?",
-    "answer": "Hasan"
+    "answer": [
+      "Hasan ibn Ali rodiyallohu anhu",
+      "Hasan"
+    ]
   },
   {
     "question": "395) Hudaybiya sulhida Quraysh elchisi sifatida borib, ushlab qolingan sahoba kim?",
-    "answer": "Usmon"
+    "answer": [
+      "Usmon ibn Affon rodiyallohu anhu",
+      "Usmon"
+    ]
   },
   {
     "question": "396) Qur'onda nomi zikr etilgan yagona sahoba kim?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "397) Mu'ta g'azotida ketma-ket bayroqni olgan uchinchi sarkarda kim?",
-    "answer": "Abdulloh ibn Ravoha"
+    "answer": [
+      "Abdulloh ibn Ravoha rodiyallohu anhu",
+      "Abdulloh ibn Ravoha"
+    ]
   },
   {
     "question": "398) Habashistonga hijrat qilgan sahobalar nomidan Najoshiy huzurida so'zlagan sahoba kim?",
-    "answer": "Ja'far"
+    "answer": [
+      "Ja'far ibn Abu Tolib rodiyallohu anhu",
+      "Ja'far"
+    ]
   },
   {
     "question": "399) Badr g'azotida musulmonlar safidan ilk o'q uzgan sahoba kim?",
-    "answer": "Sa'd ibn Abu Vaqqos"
+    "answer": [
+      "Sa'd ibn Abu Vaqqos rodiyallohu anhu",
+      "Sa'd ibn Abu Vaqqos"
+    ]
   },
   {
     "question": "400) Eng ko'p hadis rivoyat qilgan ayol sahoba kim?",
-    "answer": "Oysha"
+    "answer": [
+      "Oysha onamiz",
+      "Oysha rodiyallohu anho",
+      "Oysha",
+      "Oisha"
+    ]
   },
   {
     "question": "401) Uhud g'azotida Rasululloh sollallohu alayhi vasallamni himoya qilgan ayol sahobalardan biri kim?",
-    "answer": "Nusayba"
+    "answer": [
+      "Nusayba onamiz",
+      "Nusayba rodiyallohu anho",
+      "Nusayba"
+    ]
   },
   {
     "question": "402) Xaybar qal'alarini fath etishda bayroq kimga topshirildi?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "403) Makka davrida musulmonlar yashirin yig'ilgan uyi bilan mashhur sahoba kim?",
-    "answer": "Arqam"
+    "answer": [
+      "Arqam ibn Abil Arqam rodiyallohu anhu",
+      "Arqam"
+    ]
   },
   {
     "question": "404) Aqaba bay'atida ishtirok etgan madinalik qabilalardan biri qaysi?",
@@ -1621,31 +2013,54 @@
   },
   {
     "question": "406) Rasululloh sollallohu alayhi vasallamning birinchi zavjalari kim?",
-    "answer": "Xadicha"
+    "answer": [
+      "Xadicha onamiz",
+      "Xadicha rodiyallohu anho",
+      "Xadicha"
+    ]
   },
   {
     "question": "407) Islomni birinchi qabul qilgan ayol kim?",
-    "answer": "Xadicha"
+    "answer": [
+      "Xadicha onamiz",
+      "Xadicha rodiyallohu anho",
+      "Xadicha"
+    ]
   },
   {
     "question": "408) Islomni birinchi qabul qilgan erkak sahoba kim?",
-    "answer": "Abu Bakr"
+    "answer": [
+      "Abu Bakr Siddiq rodiyallohu anhu",
+      "Abu Bakr"
+    ]
   },
   {
     "question": "409) Islomni birinchi qabul qilgan yosh bola sahoba kim?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "410) Madinada muhojirlar bilan ansorlarni kim birodarlashtirdi?",
-    "answer": "Muhammad"
+    "answer": [
+      "Muhammad sollallohu alayhi vasallam",
+      "Muhammad"
+    ]
   },
   {
     "question": "411) Sahobalar orasida ilmga ishtiyoqi bilan tanilgan Abdulloh ibn Abbos kimning amakivachchasi edi?",
-    "answer": "Muhammad"
+    "answer": [
+      "Muhammad sollallohu alayhi vasallam",
+      "Muhammad"
+    ]
   },
   {
     "question": "412) Madinada Rasululloh sollallohu alayhi vasallamning tuyalari cho'kkan joy hovlisida kimning uyi bo'lgan?",
-    "answer": "Abu Ayyub Ansoriy"
+    "answer": [
+      "Abu Ayyub Ansoriy rodiyallohu anhu",
+      "Abu Ayyub Ansoriy"
+    ]
   },
   {
     "question": "413) Savr g'orida Rasululloh sollallohu alayhi vasallam va Abu Bakrga xabar yetkazib turgan o'g'il kim?",
@@ -1653,11 +2068,18 @@
   },
   {
     "question": "414) Savr g'orida oziq-ovqat olib borgan Abu Bakrning qizlari kim?",
-    "answer": "Asmo"
+    "answer": [
+      "Asmo onamiz",
+      "Asmo rodiyallohu anho",
+      "Asmo"
+    ]
   },
   {
     "question": "415) Hijrat yo'lida yo'l boshlovchi bo'lgan tajribali kishi kim edi?",
-    "answer": "Abdulloh ibn Urayqit"
+    "answer": [
+      "Abdulloh ibn Urayqit",
+      "Abdulloh ibn Urayqit"
+    ]
   },
   {
     "question": "416) Payg'ambarimiz sollallohu alayhi vasallam tug'ilgan yil qanday nomlanadi?",
@@ -1669,7 +2091,10 @@
   },
   {
     "question": "418) Payg'ambarimiz sollallohu alayhi vasallamning onalari kim?",
-    "answer": "Omina"
+    "answer": [
+      "Omina onamiz",
+      "Omina"
+    ]
   },
   {
     "question": "419) Payg'ambarimiz sollallohu alayhi vasallamning bobolari kim?",
@@ -1677,7 +2102,10 @@
   },
   {
     "question": "420) Payg'ambarimiz sollallohu alayhi vasallamga sut bergan emizuvchi onalari kim?",
-    "answer": "Halima"
+    "answer": [
+      "Halima onamiz",
+      "Halima"
+    ]
   },
   {
     "question": "421) Payg'ambarimiz sollallohu alayhi vasallamning onalari vafot etgan joy qayer?",
@@ -1709,7 +2137,10 @@
   },
   {
     "question": "428) Toif safarida Rasululloh sollallohu alayhi vasallamga kim hamroh bo'ldi?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "429) Isro va Me'roj hodisasi qaysi shahardan boshlandi?",
@@ -1737,7 +2168,10 @@
   },
   {
     "question": "435) Rasululloh sollallohu alayhi vasallamning Xadicha onamizdan bo'lmagan farzandlari kim?",
-    "answer": "Ibrohim"
+    "answer": [
+      "Ibrohim alayhissalom",
+      "Ibrohim"
+    ]
   },
   {
     "question": "436) Makka qaysi hijriy yilda fath etildi?",
@@ -1781,7 +2215,10 @@
   },
   {
     "question": "446) Payg'ambarimiz sollallohu alayhi vasallamning kunyalari nima edi?",
-    "answer": "Abul Qosim"
+    "answer": [
+      "Abul Qosim sollallohu alayhi vasallam",
+      "Abul Qosim"
+    ]
   },
   {
     "question": "447) Madinaga kirib kelganlarida kuylangan mashhur qo'shiq qanday boshlanadi?",
@@ -1797,11 +2234,17 @@
   },
   {
     "question": "450) Birinchi inson va birinchi payg'ambar kim?",
-    "answer": "Odam"
+    "answer": [
+      "Odam alayhissalom",
+      "Odam"
+    ]
   },
   {
     "question": "451) Odam alayhissalomning juftlari kim?",
-    "answer": "Havvo"
+    "answer": [
+      "Havvo onamiz",
+      "Havvo"
+    ]
   },
   {
     "question": "452) Odam alayhissalomning qurbonlik keltirgan o'g'illaridan biri kim?",
@@ -1809,7 +2252,10 @@
   },
   {
     "question": "453) Ulkan to'fondan kema orqali najot topgan payg'ambar kim?",
-    "answer": "Nuh"
+    "answer": [
+      "Nuh alayhissalom",
+      "Nuh"
+    ]
   },
   {
     "question": "454) Nuh alayhissalom qavmlarini necha yil da'vat qildilar?",
@@ -1821,31 +2267,52 @@
   },
   {
     "question": "456) Od qavmiga yuborilgan payg'ambar kim?",
-    "answer": "Hud"
+    "answer": [
+      "Hud alayhissalom",
+      "Hud"
+    ]
   },
   {
     "question": "457) Samud qavmiga yuborilgan payg'ambar kim?",
-    "answer": "Solih"
+    "answer": [
+      "Solih alayhissalom",
+      "Solih"
+    ]
   },
   {
     "question": "458) 'Xalilulloh' laqabli ulug' payg'ambar kim?",
-    "answer": "Ibrohim"
+    "answer": [
+      "Ibrohim alayhissalom",
+      "Ibrohim"
+    ]
   },
   {
     "question": "459) Zamzam bulog'i paydo bo'lishi bilan bog'liq payg'ambar kim?",
-    "answer": "Ismoil"
+    "answer": [
+      "Ismoil alayhissalom",
+      "Ismoil"
+    ]
   },
   {
     "question": "460) Ibrohim alayhissalomning Ismoildan keyingi payg'ambar o'g'illari kim?",
-    "answer": "Is'hoq"
+    "answer": [
+      "Is'hoq alayhissalom",
+      "Is'hoq"
+    ]
   },
   {
     "question": "461) Is'hoq alayhissalomning o'g'illari, 'Isroil' laqabli payg'ambar kim?",
-    "answer": "Ya'qub"
+    "answer": [
+      "Ya'qub alayhissalom",
+      "Ya'qub"
+    ]
   },
   {
     "question": "462) Tush ta'biri ilmi berilgan misrlik payg'ambar kim?",
-    "answer": "Yusuf"
+    "answer": [
+      "Yusuf alayhissalom",
+      "Yusuf"
+    ]
   },
   {
     "question": "463) Yusuf alayhissalomni sotib olgan misrlik amaldor qanday unvonda edi?",
@@ -1853,31 +2320,52 @@
   },
   {
     "question": "464) Lut qavmiga yuborilgan payg'ambar kim?",
-    "answer": "Lut"
+    "answer": [
+      "Lut alayhissalom",
+      "Lut"
+    ]
   },
   {
     "question": "465) Madyan ahliga yuborilgan payg'ambar kim?",
-    "answer": "Shuayb"
+    "answer": [
+      "Shuayb alayhissalom",
+      "Shuayb"
+    ]
   },
   {
     "question": "466) Og'ir sinovni sabr bilan yenggan payg'ambar kim?",
-    "answer": "Ayyub"
+    "answer": [
+      "Ayyub alayhissalom",
+      "Ayyub"
+    ]
   },
   {
     "question": "467) 'Kalimulloh' laqabli payg'ambar kim?",
-    "answer": "Muso"
+    "answer": [
+      "Muso alayhissalom",
+      "Muso"
+    ]
   },
   {
     "question": "468) Muso alayhissalomning akalari va yordamchi qilib so'ralgan payg'ambar kim?",
-    "answer": "Horun"
+    "answer": [
+      "Horun alayhissalom",
+      "Horun"
+    ]
   },
   {
     "question": "469) Katta baliq qornida bo'lgan payg'ambar kim?",
-    "answer": "Yunus"
+    "answer": [
+      "Yunus alayhissalom",
+      "Yunus"
+    ]
   },
   {
     "question": "470) Zabur nozil bo'lgan va temirni qo'lda yumshatish mo'jizasi berilgan payg'ambar kim?",
-    "answer": "Dovud"
+    "answer": [
+      "Dovud alayhissalom",
+      "Dovud"
+    ]
   },
   {
     "question": "471) Qushlar tilini bilgan va Sulaymon alayhissalomga xabar keltirgan qush qaysi?",
@@ -1889,23 +2377,38 @@
   },
   {
     "question": "473) Ilyos alayhissalomdan keyin kelgan payg'ambar kim?",
-    "answer": "Al-Yasa"
+    "answer": [
+      "Al-Yasa alayhissalom",
+      "Al-Yasa"
+    ]
   },
   {
     "question": "474) Yahyo alayhissalomning otalari bo'lgan payg'ambar kim?",
-    "answer": "Zakariyo"
+    "answer": [
+      "Zakariyo alayhissalom",
+      "Zakariyo"
+    ]
   },
   {
     "question": "475) Zakariyo alayhissalomning o'g'illari bo'lgan payg'ambar kim?",
-    "answer": "Yahyo"
+    "answer": [
+      "Yahyo alayhissalom",
+      "Yahyo"
+    ]
   },
   {
     "question": "476) Beshikda gapirgan va Injil berilgan payg'ambar kim?",
-    "answer": "Iso"
+    "answer": [
+      "Iso alayhissalom",
+      "Iso"
+    ]
   },
   {
     "question": "477) Iso alayhissalomning onalari kim?",
-    "answer": "Maryam"
+    "answer": [
+      "Maryam onamiz",
+      "Maryam"
+    ]
   },
   {
     "question": "478) Ulul-azm payg'ambarlar nechta?",
@@ -1913,7 +2416,10 @@
   },
   {
     "question": "479) Hizr alayhissalom bilan safar qilgan payg'ambar kim?",
-    "answer": "Muso"
+    "answer": [
+      "Muso alayhissalom",
+      "Muso"
+    ]
   },
   {
     "question": "480) Badr g'azoti qaysi hijriy yilda bo'ldi?",
@@ -1941,7 +2447,10 @@
   },
   {
     "question": "486) Uhud g'azotida shahid bo'lgan ulug' sahoba kim?",
-    "answer": "Hamza"
+    "answer": [
+      "Hamza ibn Abdulmuttalib rodiyallohu anhu",
+      "Hamza"
+    ]
   },
   {
     "question": "487) Xandaq g'azoti qaysi hijriy yilda bo'ldi?",
@@ -1961,7 +2470,10 @@
   },
   {
     "question": "491) Mu'ta g'azotida qo'shinni omon olib chiqishda mahorat ko'rsatgan sarkarda kim?",
-    "answer": "Xolid ibn Valid"
+    "answer": [
+      "Xolid ibn Valid rodiyallohu anhu",
+      "Xolid ibn Valid"
+    ]
   },
   {
     "question": "492) Makka fathidan keyin bo'lib o'tgan g'azot qaysi?",
@@ -2417,11 +2929,18 @@
   },
   {
     "question": "605) Qur'oni Karimda nomi kelgan 25 payg'ambardan biri, baliq qornida duo qilgan zot kim?",
-    "answer": "Yunus"
+    "answer": [
+      "Yunus alayhissalom",
+      "Yunus"
+    ]
   },
   {
     "question": "606) Makka davrida musulmonlarga ilk tayanch bo'lgan, Rasululloh sollallohu alayhi vasallamning birinchi ayollari kim?",
-    "answer": "Xadicha"
+    "answer": [
+      "Xadicha onamiz",
+      "Xadicha rodiyallohu anho",
+      "Xadicha"
+    ]
   },
   {
     "question": "607) Hijratdan keyin Madinada barpo etilgan ilk masjiddan biri bo'lgan Qubo masjidi qayerda qurilgan?",
@@ -2433,15 +2952,24 @@
   },
   {
     "question": "609) Badr g'azotida musulmonlar safida bo'lgan, keyinchalik 'Sayfulloh' laqabini olgan sarkarda kim?",
-    "answer": "Xolid ibn Valid"
+    "answer": [
+      "Xolid ibn Valid rodiyallohu anhu",
+      "Xolid ibn Valid"
+    ]
   },
   {
     "question": "610) Uhud g'azotida shahid bo'lgan, Rasululloh sollallohu alayhi vasallamning 'Asadulloh' laqabli amakilari kim?",
-    "answer": "Hamza"
+    "answer": [
+      "Hamza ibn Abdulmuttalib rodiyallohu anhu",
+      "Hamza"
+    ]
   },
   {
     "question": "611) Qur'onda nomi zikr etilgan yagona sahoba kim?",
-    "answer": "Zayd ibn Horisa"
+    "answer": [
+      "Zayd ibn Horisa rodiyallohu anhu",
+      "Zayd ibn Horisa"
+    ]
   },
   {
     "question": "612) Qur'oni Karimda 'Muavvizatayn' deb ataluvchi panoh so'rash suralaridan biri qaysi?",
@@ -2453,7 +2981,10 @@
   },
   {
     "question": "614) Xandaq g'azotida xandaq qazish g'oyasini bergan sahoba kim?",
-    "answer": "Salmon Forsiy"
+    "answer": [
+      "Salmon Forsiy rodiyallohu anhu",
+      "Salmon Forsiy"
+    ]
   },
   {
     "question": "615) Qur'oni Karimda nechta sura bor?",
@@ -2461,7 +2992,10 @@
   },
   {
     "question": "616) Rasululloh sollallohu alayhi vasallamning eng ko'p hadis rivoyat qilgan sahobalaridan biri kim?",
-    "answer": "Abu Hurayra"
+    "answer": [
+      "Abu Hurayra rodiyallohu anhu",
+      "Abu Hurayra"
+    ]
   },
   {
     "question": "617) Payg'ambarimiz sollallohu alayhi vasallamning qiyomatgacha boqiy qoluvchi eng ulug' va abadiy mo'jizalari nima?",
@@ -2525,7 +3059,10 @@
   },
   {
     "question": "632) Xaybar kuni ko'zlari og'rib turgan qaysi sahobaning ko'zlariga Rasululloh sollallohu alayhi vasallam muborak tupuklarini surtganlarida darhol tuzalgan?",
-    "answer": "Ali"
+    "answer": [
+      "Ali ibn Abu Tolib rodiyallohu anhu",
+      "Ali"
+    ]
   },
   {
     "question": "633) Uhud jangida ko'zi yuziga oqib tushgan Qatoda ibn Nu'monning ko'zini Rasululloh sollallohu alayhi vasallam o'z qo'llari bilan joyiga qo'yganlarida ko'zi qanday bo'lib qolgan?",
@@ -2573,6 +3110,7 @@
   {
     "question": "643) Eng ko'p hadis rivoyat qilgan ikkinchi sahoba kim?",
     "answer": [
+      "Abdulloh ibn Umar rodiyallohu anhu",
       "Abdulloh ibn Umar",
       "Ibn Umar"
     ]
@@ -2609,8 +3147,9 @@
   {
     "question": "648) Ayol sahobalar orasida eng ko'p hadis rivoyat qilgan zot kim?",
     "answer": [
-      "Oysha",
+      "Oysha onamiz",
       "Oysha rodiyallohu anho",
+      "Oysha",
       "Oisha"
     ]
   },
@@ -2668,8 +3207,8 @@
   {
     "question": "656) Cho'l-u biyobonlarda emas, ko'proq Madinada Rasululloh sollallohu alayhi vasallamning yonlarida yurib, eng ko'p hadis rivoyat qilgan sahoba kim?",
     "answer": [
-      "Abu Hurayra",
-      "Abu Hurayra rodiyallohu anhu"
+      "Abu Hurayra rodiyallohu anhu",
+      "Abu Hurayra"
     ]
   },
   {
