@@ -412,6 +412,26 @@ async def persist_chat_access(chat_id: int | None = None) -> None:
       await upsert_chat_access_db(cid, info)
 
 
+async def delete_chat_access_db(chat_id: int) -> None:
+  if not db_pool:
+    return
+  try:
+    async with db_pool.acquire() as conn:
+      await conn.execute("DELETE FROM chat_access WHERE chat_id = $1", chat_id)
+      await conn.execute("DELETE FROM chat_games WHERE chat_id = $1", chat_id)
+  except Exception as exc:
+    print(f"DB ERROR in delete_chat_access_db: {exc}")
+
+
+async def remove_chat_record(chat_id: int) -> None:
+  chat_access.pop(chat_id, None)
+  games.pop(chat_id, None)
+  pending_buyers.pop(chat_id, None)
+  save_access_to_json()
+  save_state_to_json()
+  await delete_chat_access_db(chat_id)
+
+
 async def record_group_seen(
     chat: types.Chat, in_group: bool | None = None
 ) -> None:
@@ -466,9 +486,7 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
         "username": username,
     }
   except Exception:
-    if chat_id in chat_access:
-      chat_access[chat_id]["in_group"] = False
-      await persist_chat_access(chat_id)
+    await remove_chat_record(chat_id)
     return None
 
 
@@ -933,7 +951,10 @@ async def on_my_chat_member(event: types.ChatMemberUpdated):
     return
   new_status = event.new_chat_member.status
   in_group = new_status in {"member", "administrator", "creator"}
-  await record_group_seen(event.chat, in_group=in_group)
+  if not in_group:
+    await remove_chat_record(event.chat.id)
+    return
+  await record_group_seen(event.chat, in_group=True)
 
 
 @dp.message(Command("start"))
@@ -1015,6 +1036,50 @@ async def cmd_guruhlar(message: types.Message):
     )
 
   await message.answer("\n\n".join(lines), parse_mode=ParseMode.HTML)
+
+
+@dp.message(Command("chiq"))
+async def cmd_chiq(message: types.Message, command: CommandObject):
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  args = (command.args or "").strip().split()
+  if not args:
+    await message.answer(
+        "Foydalanish: <code>/chiq <chat_id></code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  try:
+    target_cid = int(args[0])
+  except ValueError:
+    await message.answer("Chat ID noto'g'ri formatda.")
+    return
+
+  left_ok = False
+  leave_err = ""
+  try:
+    left_ok = bool(await bot.leave_chat(chat_id=target_cid))
+  except Exception as exc:
+    leave_err = str(exc)
+
+  await remove_chat_record(target_cid)
+
+  if left_ok:
+    await message.answer(
+        f"🚪 Bot <code>{target_cid}</code> guruhidan chiqdi va"
+        " <code>/guruhlar</code> ro'yxatidan o'chirildi.",
+        parse_mode=ParseMode.HTML,
+    )
+  else:
+    err_note = f" ({html.escape(leave_err)})" if leave_err else ""
+    await message.answer(
+        f"⚠️ Guruhdan chiqishda xabar{err_note}, lekin"
+        f" <code>{target_cid}</code> bazadan va <code>/guruhlar</code>"
+        " ro'yxatidan o'chirildi.",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 @dp.callback_query(F.data.startswith("back:"))
