@@ -66,7 +66,8 @@
     "question": "10) Islomda ilk bor Qur'onni oshkora o'qigan sahoba kim?",
     "answer": [
       "Abdulloh ibn Mas'ud rodiyallohu anhu",
-      "Abdulloh ibn Mas'ud"
+      "Abdulloh ibn Mas'ud",
+      "Abdulloh ibn Masud"
     ]
   },
   {
@@ -95,7 +96,7 @@
     ]
   },
   {
-    "question": "15) Badr g'azotida ishtirok etgan, keyinchalik 'Sayfulloh' laqabini olgan sarkarda kim?",
+    "question": "15) Mo'ta jangida ishtirok etgan, keyinchalik 'Sayfulloh' laqabini olgan sarkarda kim?",
     "answer": [
       "Xolid ibn Valid rodiyallohu anhu",
       "Xolid ibn Valid"
@@ -151,15 +152,17 @@
   {
     "question": "23) Badr g'azotida Rasululloh sollallohu alayhi vasallamning 'Men uchun otam-onam fido bo'lsin' degan sahobalari kim?",
     "answer": [
-      "Sa'd ibn Muoz rodiyallohu anhu",
-      "Sa'd ibn Muoz"
+      "Zubayr ibn Avvom rodiyallohu anhu",
+      "Zubayr ibn Avvom"
     ]
   },
   {
     "question": "24) Uhud g'azotida Rasululloh sollallohu alayhi vasallamni himoya qilib, qo'llari shol bo'lgan sahoba kim?",
     "answer": [
       "Talha ibn Ubaydulloh rodiyallohu anhu",
-      "Talha"
+      "Talha",
+      "Tolha ibn Ubaydulloh",
+      "Tolha"
     ]
   },
   {
@@ -232,7 +235,9 @@
     "question": "34) Jannat yoshlarining sayyidlari deb zikr qilingan ikki aka-uka sahobalar kimlar (birini yozing)?",
     "answer": [
       "Hasan ibn Ali rodiyallohu anhu",
-      "Hasan"
+      "Hasan",
+      "Husayn ibn Ali rodiyallohu anhu",
+      "Husayn"
     ]
   },
   {
@@ -260,7 +265,8 @@
     "question": "38) Qur'onda nomi zikr etilgan yagona sahoba kim?",
     "answer": [
       "Zayd ibn Horisa rodiyallohu anhu",
-      "Zayd ibn Horisa"
+      "Zayd ibn Horisa",
+      "Zayd ibn Xorisa"
     ]
   },
   {
