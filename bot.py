@@ -2011,7 +2011,10 @@ async def cmd_ochirilganlar(message: types.Message):
 
 @dp.message(Command("umumiyga_qosh"))
 async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: foydalanuvchini umumiy reytingga qo'shadi."""
+  """Faqat ADMIN_ID uchun: foydalanuvchi yoki kanalni umumiy reytingga qo'shadi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
   raw_args = (command.args or "").strip()
   reply_user = (
       message.reply_to_message.from_user
@@ -2032,19 +2035,19 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
     )
 
   query_part = raw_args
-  bonus_points: int | None = None
+  explicit_points: int | None = None
 
   if "|" in raw_args:
     left_side, right_side = raw_args.rsplit("|", 1)
     r_clean = right_side.strip()
     if r_clean.lstrip("-").isdigit():
-      bonus_points = int(r_clean)
+      explicit_points = int(r_clean)
       query_part = left_side.strip()
   else:
     tokens = raw_args.split()
     if len(tokens) >= 2 and tokens[-1].lstrip("-").isdigit():
       if tokens[0].lstrip("-").isdigit() or reply_user:
-        bonus_points = int(tokens[-1])
+        explicit_points = int(tokens[-1])
         query_part = " ".join(tokens[:-1]).strip()
 
   all_users_map = _collect_all_known_users()
@@ -2053,6 +2056,7 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
   target_uid: int | None = None
   display_label = ""
   resolved_username = ""
+  found_existing = False
 
   if matched_ids:
     if len(matched_ids) > 1:
@@ -2063,6 +2067,7 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
       await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
       return
     target_uid = matched_ids[0]
+    found_existing = True
     raw_name = str(all_users_map[target_uid].get("name") or "").strip()
     resolved_username = str(all_users_map[target_uid].get("username") or "").strip().lstrip("@")
     display_label = html.escape(raw_name if raw_name else str(target_uid))
@@ -2088,49 +2093,60 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
     await message.answer(
         "❌ Foydalanuvchi yoki kanal topilmadi.\n"
         "Foydalanish:\n"
-        "• Xabariga reply qilib: <code>/umumiyga_qosh</code> yoki <code>/umumiyga_qosh 500</code>\n"
-        "• ID / nom bilan: <code>/umumiyga_qosh -1001234567890 500</code>\n"
-        "• Yoki: <code>/umumiyga_qosh Kanal Nomi | 500</code>",
+        "• Xabariga reply qilib: <code>/umumiyga_qosh</code> yoki <code>/umumiyga_qosh 40000</code>\n"
+        "• ID / nom bilan: <code>/umumiyga_qosh -1001234567890 40000</code>\n"
+        "• Yoki: <code>/umumiyga_qosh Kanal Nomi | 40000</code>",
         parse_mode=ParseMode.HTML,
     )
     return
 
   await remove_global_excluded_user(target_uid)
 
-  points_added_note = ""
-  if bonus_points is not None and bonus_points != 0:
-    score_cid = message.chat.id if message.chat.type != "private" else None
-    if score_cid is None:
-      active_cids = [cid for cid in games.keys() if int(cid) < 0]
-      score_cid = active_cids[0] if active_cids else -1009999999999
-    chat_game = await get_chat_game(score_cid)
-    sc = chat_game["scores"]
-    existing_entry = sc.get(target_uid)
-    clean_name_for_score = (
-        html.unescape(display_label)
-        if not display_label.startswith("<code>")
-        else f"Kanal ({target_uid})"
-    )
-    if isinstance(existing_entry, dict):
-      existing_entry["score"] = int(existing_entry.get("score", 0)) + bonus_points
-      existing_entry["hidden_in_group"] = False
-      if clean_name_for_score and existing_entry.get("name") in (None, "", "O'yinchi"):
-        existing_entry["name"] = clean_name_for_score
-      if resolved_username and not existing_entry.get("username"):
-        existing_entry["username"] = resolved_username
-    else:
+  # Calculate current total score across all groups for target_uid
+  current_total = 0
+  for gdata in games.values():
+    if not isinstance(gdata, dict):
+      continue
+    sc = gdata.get("scores", {})
+    if isinstance(sc, dict) and target_uid in sc and isinstance(sc[target_uid], dict):
+      try:
+        current_total += int(float(sc[target_uid].get("score", 0)))
+      except (TypeError, ValueError):
+        pass
+
+  points_note = ""
+  if explicit_points is not None:
+    if not found_existing or current_total == 0:
+      # Create or set initial score without doubling an already-existing 40,000 score
+      score_cid = message.chat.id if message.chat.type != "private" else None
+      if score_cid is None:
+        active_cids = [cid for cid in games.keys() if int(cid) < 0]
+        score_cid = active_cids[0] if active_cids else -1009999999999
+      chat_game = await get_chat_game(score_cid)
+      sc = chat_game["scores"]
+      clean_name_for_score = (
+          html.unescape(display_label)
+          if not display_label.startswith("<code>")
+          else f"Kanal ({target_uid})"
+      )
       sc[target_uid] = {
           "name": clean_name_for_score,
           "username": resolved_username,
-          "score": bonus_points,
+          "score": explicit_points,
           "hidden_in_group": False,
       }
-    await persist_state(score_cid)
-    points_added_note = f"\n➕ Ball qo'shildi: <b>{bonus_points} ball</b>"
+      await persist_state(score_cid)
+      current_total = explicit_points
+      points_note = f"\n📊 Umumiy balli: <b>{current_total} ball</b>"
+    else:
+      # Already has existing score in database — preserve it and don't double-count
+      points_note = f"\n📊 Mavjud balli saqlab qolindi: <b>{current_total} ball</b>"
+  else:
+    points_note = f"\n📊 Hozirgi umumiy balli: <b>{current_total} ball</b>"
 
   await message.answer(
       f"✅ <b>{display_label}</b> (<code>{target_uid}</code>) umumiy"
-      f" reytingga qo'shildi!{points_added_note}",
+      f" reytingda faol!{points_note}",
       parse_mode=ParseMode.HTML,
   )
 
