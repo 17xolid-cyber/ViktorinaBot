@@ -33,11 +33,15 @@ TEMP_STATE_FILE = "games_state.tmp"
 ACCESS_FILE = "chats_access.json"
 TEMP_ACCESS_FILE = "chats_access.tmp"
 
+GLOBAL_EXCLUDED_FILE = "global_excluded.json"
+TEMP_GLOBAL_EXCLUDED_FILE = "global_excluded.tmp"
+
 db_pool = None
 games = {}
 chat_access = {}
 pending_receipts = {}
 pending_buyers = {}
+global_excluded_users: set[int] = set()
 
 TARIFFS = {
     "15d": {"label": "15 kunga", "days": 15, "price": "12 000 so'm"},
@@ -214,8 +218,15 @@ def format_scores_text(
 ) -> str:
   if not scores:
     return "Bu guruhda hozircha hech kim ball to'plagani yo'q."
+  visible_items = [
+      (uid, data)
+      for uid, data in scores.items()
+      if isinstance(data, dict) and not data.get("hidden_in_group", False)
+  ]
+  if not visible_items:
+    return "Bu guruhda hozircha hech kim ball to'plagani yo'q."
   sorted_scores = sorted(
-      scores.items(), key=lambda item: item[1]["score"], reverse=True
+      visible_items, key=lambda item: item[1]["score"], reverse=True
   )
   lines = [f"{html.escape(title)}\n"]
   for idx, (uid, data) in enumerate(sorted_scores, start=1):
@@ -284,6 +295,11 @@ async def init_db() -> None:
               chat_id BIGINT PRIMARY KEY,
               current_question JSONB NULL,
               scores JSONB NOT NULL DEFAULT '{}'::jsonb
+          );
+      """)
+      await conn.execute("""
+          CREATE TABLE IF NOT EXISTS global_opt_in (
+              user_id BIGINT PRIMARY KEY
           );
       """)
     print("DB CONNECTED")
@@ -931,6 +947,96 @@ async def get_chat_game(chat_id: int) -> dict:
   return games[chat_id]
 
 
+def load_global_excluded_from_json() -> set[int]:
+  if not os.path.exists(GLOBAL_EXCLUDED_FILE):
+    return set()
+  try:
+    with open(GLOBAL_EXCLUDED_FILE, "r", encoding="utf-8") as f:
+      raw = json.load(f)
+    if not isinstance(raw, list):
+      return set()
+    result = set()
+    for item in raw:
+      try:
+        uid = int(item)
+        if uid > 0:
+          result.add(uid)
+      except (TypeError, ValueError):
+        continue
+    return result
+  except (json.JSONDecodeError, OSError, ValueError):
+    return set()
+
+
+def save_global_excluded_to_json() -> None:
+  serializable = sorted(int(uid) for uid in global_excluded_users if int(uid) > 0)
+  try:
+    with open(TEMP_GLOBAL_EXCLUDED_FILE, "w", encoding="utf-8") as f:
+      json.dump(serializable, f, ensure_ascii=False, indent=2)
+      f.flush()
+      os.fsync(f.fileno())
+    os.replace(TEMP_GLOBAL_EXCLUDED_FILE, GLOBAL_EXCLUDED_FILE)
+  except OSError:
+    pass
+
+
+async def load_global_excluded_async() -> set[int]:
+  json_ids = load_global_excluded_from_json()
+  if not db_pool:
+    return json_ids
+  try:
+    async with db_pool.acquire() as conn:
+      rows = await conn.fetch("SELECT user_id FROM global_opt_in")
+    db_ids = {int(r["user_id"]) for r in rows if int(r["user_id"]) > 0}
+    for uid in json_ids:
+      if uid not in db_ids:
+        db_ids.add(uid)
+        await set_global_excluded_db(uid, True)
+    return db_ids
+  except Exception as exc:
+    print(f"DB ERROR in load_global_excluded_async: {exc}")
+    return json_ids
+
+
+async def set_global_excluded_db(user_id: int, excluded: bool) -> None:
+  if not db_pool or user_id <= 0:
+    return
+  try:
+    async with db_pool.acquire() as conn:
+      if excluded:
+        await conn.execute(
+            """
+            INSERT INTO global_opt_in (user_id)
+            VALUES ($1)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            user_id,
+        )
+      else:
+        await conn.execute(
+            "DELETE FROM global_opt_in WHERE user_id = $1",
+            user_id,
+        )
+  except Exception as exc:
+    print(f"DB ERROR in set_global_excluded_db: {exc}")
+
+
+async def add_global_excluded_user(user_id: int) -> None:
+  if user_id <= 0:
+    return
+  global_excluded_users.add(user_id)
+  save_global_excluded_to_json()
+  await set_global_excluded_db(user_id, True)
+
+
+async def remove_global_excluded_user(user_id: int) -> None:
+  if user_id <= 0:
+    return
+  global_excluded_users.discard(user_id)
+  save_global_excluded_to_json()
+  await set_global_excluded_db(user_id, False)
+
+
 def load_questions():
   try:
     with open("questions.json", "r", encoding="utf-8") as f:
@@ -1560,6 +1666,8 @@ def format_global_top20_text(all_games: dict) -> str:
         uid_int = int(uid)
       except (TypeError, ValueError):
         continue
+      if uid_int in global_excluded_users:
+        continue
       pts = int(info.get("score", 0))
       if pts <= 0:
         continue
@@ -1591,8 +1699,8 @@ def format_global_top20_text(all_games: dict) -> str:
   return "\n".join(lines)
 
 
-@dp.message(Command("umumiyteyting"))
-async def cmd_umumiyteyting(message: types.Message):
+@dp.message(Command("umumiyreyting", "umumiyteyting"))
+async def cmd_umumiyreyting(message: types.Message):
   if message.chat.type != "private":
     await record_group_seen(message.chat, in_group=True)
     if not await is_group_active(message.chat.id):
@@ -1601,6 +1709,238 @@ async def cmd_umumiyteyting(message: types.Message):
 
   await message.answer(
       format_global_top20_text(games), parse_mode=ParseMode.HTML
+  )
+
+
+def _find_target_users_in_map(
+    users_map: dict[int, dict], query: str, reply_user: types.User | None
+) -> list[int]:
+  matched_ids: list[int] = []
+  if reply_user and reply_user.id in users_map:
+    matched_ids.append(reply_user.id)
+    return matched_ids
+
+  q_clean = query.strip()
+  if not q_clean:
+    return matched_ids
+
+  if q_clean.lstrip("-").isdigit():
+    uid_target = int(q_clean)
+    if uid_target in users_map:
+      matched_ids.append(uid_target)
+    return matched_ids
+
+  q_lower = q_clean.lstrip("@").lower()
+  for uid, info in users_map.items():
+    if not isinstance(info, dict):
+      continue
+    uname = str(info.get("username") or "").strip().lstrip("@").lower()
+    name = str(info.get("name") or "").strip().lower()
+    if (uname and uname == q_lower) or (name and name == q_lower):
+      matched_ids.append(uid)
+
+  if not matched_ids and len(q_lower) >= 2:
+    for uid, info in users_map.items():
+      if not isinstance(info, dict):
+        continue
+      uname = str(info.get("username") or "").strip().lstrip("@").lower()
+      name = str(info.get("name") or "").strip().lower()
+      if (uname and q_lower in uname) or (name and q_lower in name):
+        matched_ids.append(uid)
+
+  return matched_ids
+
+
+def _collect_all_known_users() -> dict[int, dict]:
+  all_users_map: dict[int, dict] = {}
+  for gdata in games.values():
+    if not isinstance(gdata, dict):
+      continue
+    sc = gdata.get("scores", {})
+    if not isinstance(sc, dict):
+      continue
+    for uid, info in sc.items():
+      if isinstance(info, dict):
+        try:
+          uid_int = int(uid)
+        except (TypeError, ValueError):
+          continue
+        if uid_int not in all_users_map:
+          all_users_map[uid_int] = dict(info)
+        else:
+          if info.get("name") and info.get("name") != "O'yinchi":
+            all_users_map[uid_int]["name"] = info["name"]
+          if info.get("username"):
+            all_users_map[uid_int]["username"] = info["username"]
+
+  for uid_int in global_excluded_users:
+    if uid_int not in all_users_map:
+      all_users_map[uid_int] = {"name": f"Foydalanuvchi ({uid_int})", "username": ""}
+  return all_users_map
+
+
+@dp.message(Command("reytingdan_ochir"))
+async def cmd_reytingdan_ochir(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: foydalanuvchini guruh reytingidan olib tashlaydi, BALLARNI O'CHIRMAYDI."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  raw_args = (command.args or "").strip()
+  reply_user = (
+      message.reply_to_message.from_user
+      if message.reply_to_message and message.reply_to_message.from_user
+      else None
+  )
+
+  target_cid = message.chat.id
+  user_query = raw_args
+
+  parts = raw_args.split(maxsplit=1)
+  if parts and parts[0].startswith("-") and parts[0][1:].isdigit():
+    target_cid = int(parts[0])
+    user_query = parts[1].strip() if len(parts) > 1 else ""
+
+  if target_cid not in games or not games[target_cid].get("scores"):
+    await message.answer("Bu guruh reytingida hali hech kim yo'q.")
+    return
+
+  scores = games[target_cid]["scores"]
+  matched_ids = _find_target_users_in_map(scores, user_query, reply_user)
+
+  if not matched_ids:
+    await message.answer(
+        "❌ Foydalanuvchi topilmadi.\n"
+        "Foydalanish:\n"
+        "• Guruhda xabariga reply qilib: <code>/reytingdan_ochir</code>\n"
+        "• Yoki: <code>/reytingdan_ochir &lt;user_id | @username | ism&gt;</code>\n"
+        "• Shaxsiy chatdan: <code>/reytingdan_ochir &lt;guruh_id&gt; &lt;user_id | @username | ism&gt;</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  if len(matched_ids) > 1:
+    lines = ["⚠️ Bir nechta mos foydalanuvchi topildi, aniq ID bilan kiriting:\n"]
+    for uid in matched_ids:
+      u_name = html.escape(str(scores[uid].get("name") or "O'yinchi"))
+      lines.append(f"• {u_name} — <code>{uid}</code> ({scores[uid].get('score', 0)} ball)")
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+    return
+
+  target_uid = matched_ids[0]
+  # Ballarni o'chirmaymiz, faqat ushbu guruh reytingida ko'rinmaydigan qilib belgilaymiz
+  scores[target_uid]["hidden_in_group"] = True
+  await persist_state(target_cid)
+
+  u_name = html.escape(str(scores[target_uid].get("name") or "O'yinchi"))
+  u_score = int(scores[target_uid].get("score", 0))
+  await message.answer(
+      f"🚫 <b>{u_name}</b> (<code>{target_uid}</code>) guruh reytingidan"
+      f" olib tashlandi (ballari saqlab qolindi: <b>{u_score} ball</b>).",
+      parse_mode=ParseMode.HTML,
+  )
+
+
+@dp.message(Command("umumiydan_ochir"))
+async def cmd_umumiydan_ochir(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: foydalanuvchini umumiy reytingdan chiqaradi, BALLARNI O'CHIRMAYDI."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  raw_args = (command.args or "").strip()
+  reply_user = (
+      message.reply_to_message.from_user
+      if message.reply_to_message and message.reply_to_message.from_user
+      else None
+  )
+
+  all_users_map = _collect_all_known_users()
+  matched_ids = _find_target_users_in_map(all_users_map, raw_args, reply_user)
+
+  if not matched_ids:
+    await message.answer(
+        "❌ Umumiy reyting ro'yxatidan foydalanuvchi topilmadi.\n"
+        "Foydalanish:\n"
+        "• Xabariga reply qilib: <code>/umumiydan_ochir</code>\n"
+        "• Yoki: <code>/umumiydan_ochir &lt;user_id | @username | ism&gt;</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  if len(matched_ids) > 1:
+    lines = ["⚠️ Bir nechta mos foydalanuvchi topildi, aniq ID bilan kiriting:\n"]
+    for uid in matched_ids:
+      u_name = html.escape(str(all_users_map[uid].get("name") or "O'yinchi"))
+      lines.append(f"• {u_name} — <code>{uid}</code>")
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+    return
+
+  target_uid = matched_ids[0]
+  removed_name = html.escape(str(all_users_map[target_uid].get("name") or "O'yinchi"))
+  await add_global_excluded_user(target_uid)
+
+  await message.answer(
+      f"🚫 <b>{removed_name}</b> (<code>{target_uid}</code>) umumiy"
+      " reytingdan chiqarildi (ballari o'chirilmadi; yana yangi ball olsa"
+      " ham umumiy reytingga qo'shilmaydi. Qayta kiritish uchun"
+      f" <code>/umumiyga_qosh {target_uid}</code> buyrug'ini bering).",
+      parse_mode=ParseMode.HTML,
+  )
+
+
+@dp.message(Command("umumiyga_qosh"))
+async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: foydalanuvchini umumiy reytingga qo'shadi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  raw_args = (command.args or "").strip()
+  reply_user = (
+      message.reply_to_message.from_user
+      if message.reply_to_message and message.reply_to_message.from_user
+      else None
+  )
+
+  all_users_map = _collect_all_known_users()
+  matched_ids = _find_target_users_in_map(all_users_map, raw_args, reply_user)
+
+  target_uid: int | None = None
+  display_label = ""
+
+  if matched_ids:
+    if len(matched_ids) > 1:
+      lines = ["⚠️ Bir nechta mos foydalanuvchi topildi, aniq ID bilan kiriting:\n"]
+      for uid in matched_ids:
+        u_name = html.escape(str(all_users_map[uid].get("name") or "O'yinchi"))
+        lines.append(f"• {u_name} — <code>{uid}</code>")
+      await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+      return
+    target_uid = matched_ids[0]
+    display_label = html.escape(str(all_users_map[target_uid].get("name") or target_uid))
+  else:
+    q_clean = raw_args.strip()
+    if q_clean.isdigit():
+      target_uid = int(q_clean)
+      display_label = f"<code>{target_uid}</code>"
+    elif reply_user:
+      target_uid = reply_user.id
+      display_label = html.escape(get_display_name(reply_user))
+
+  if not target_uid or target_uid <= 0:
+    await message.answer(
+        "❌ Foydalanuvchi topilmadi.\n"
+        "Foydalanish:\n"
+        "• Xabariga reply qilib: <code>/umumiyga_qosh</code>\n"
+        "• Yoki: <code>/umumiyga_qosh &lt;user_id | @username | ism&gt;</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  await remove_global_excluded_user(target_uid)
+  await message.answer(
+      f"✅ <b>{display_label}</b> (<code>{target_uid}</code>) umumiy"
+      " reytingga qayta qo'shildi! Endi uning ballari umumiy reytingda"
+      " ko'rinadi.",
+      parse_mode=ParseMode.HTML,
   )
 
 
@@ -1776,6 +2116,7 @@ async def check_answer(message: types.Message):
         scores[user_id]["username"] = username
 
     scores[user_id]["score"] += 100
+    scores[user_id]["hidden_in_group"] = False
     raw_disp = (
         raw_answer[0]
         if isinstance(raw_answer, list) and raw_answer
@@ -1819,8 +2160,10 @@ async def start_web_server():
 async def main():
   global games, chat_access
   await init_db()
+  global global_excluded_users
   games = await load_state_async()
   chat_access = await load_access_async()
+  global_excluded_users = await load_global_excluded_async()
   await start_web_server()
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
