@@ -959,7 +959,7 @@ def load_global_excluded_from_json() -> set[int]:
     for item in raw:
       try:
         uid = int(item)
-        if uid > 0:
+        if uid != 0:
           result.add(uid)
       except (TypeError, ValueError):
         continue
@@ -969,7 +969,7 @@ def load_global_excluded_from_json() -> set[int]:
 
 
 def save_global_excluded_to_json() -> None:
-  serializable = sorted(int(uid) for uid in global_excluded_users if int(uid) > 0)
+  serializable = sorted(int(uid) for uid in global_excluded_users if int(uid) != 0)
   try:
     with open(TEMP_GLOBAL_EXCLUDED_FILE, "w", encoding="utf-8") as f:
       json.dump(serializable, f, ensure_ascii=False, indent=2)
@@ -987,7 +987,7 @@ async def load_global_excluded_async() -> set[int]:
   try:
     async with db_pool.acquire() as conn:
       rows = await conn.fetch("SELECT user_id FROM global_opt_in")
-    db_ids = {int(r["user_id"]) for r in rows if int(r["user_id"]) > 0}
+    db_ids = {int(r["user_id"]) for r in rows if int(r["user_id"]) != 0}
     for uid in json_ids:
       if uid not in db_ids:
         db_ids.add(uid)
@@ -999,7 +999,7 @@ async def load_global_excluded_async() -> set[int]:
 
 
 async def set_global_excluded_db(user_id: int, excluded: bool) -> None:
-  if not db_pool or user_id <= 0:
+  if not db_pool or user_id == 0:
     return
   try:
     async with db_pool.acquire() as conn:
@@ -1022,7 +1022,7 @@ async def set_global_excluded_db(user_id: int, excluded: bool) -> None:
 
 
 async def add_global_excluded_user(user_id: int) -> None:
-  if user_id <= 0:
+  if user_id == 0:
     return
   global_excluded_users.add(user_id)
   save_global_excluded_to_json()
@@ -1030,7 +1030,7 @@ async def add_global_excluded_user(user_id: int) -> None:
 
 
 async def remove_global_excluded_user(user_id: int) -> None:
-  if user_id <= 0:
+  if user_id == 0:
     return
   global_excluded_users.discard(user_id)
   save_global_excluded_to_json()
@@ -1791,6 +1791,18 @@ async def cmd_reytingdan_ochir(message: types.Message, command: CommandObject):
       if message.reply_to_message and message.reply_to_message.from_user
       else None
   )
+  if (
+      not reply_user
+      and message.reply_to_message
+      and message.reply_to_message.sender_chat
+  ):
+    sc = message.reply_to_message.sender_chat
+    reply_user = types.User(
+        id=int(sc.id),
+        is_bot=False,
+        first_name=(sc.title or sc.username or "Kanal")[:64],
+        username=sc.username,
+    )
 
   target_cid = message.chat.id
   user_query = raw_args
@@ -1852,6 +1864,18 @@ async def cmd_umumiydan_ochir(message: types.Message, command: CommandObject):
       if message.reply_to_message and message.reply_to_message.from_user
       else None
   )
+  if (
+      not reply_user
+      and message.reply_to_message
+      and message.reply_to_message.sender_chat
+  ):
+    sc = message.reply_to_message.sender_chat
+    reply_user = types.User(
+        id=int(sc.id),
+        is_bot=False,
+        first_name=(sc.title or sc.username or "Kanal")[:64],
+        username=sc.username,
+    )
 
   all_users_map = _collect_all_known_users()
   matched_ids = _find_target_users_in_map(all_users_map, raw_args, reply_user)
@@ -1899,6 +1923,18 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
       if message.reply_to_message and message.reply_to_message.from_user
       else None
   )
+  if (
+      not reply_user
+      and message.reply_to_message
+      and message.reply_to_message.sender_chat
+  ):
+    sc = message.reply_to_message.sender_chat
+    reply_user = types.User(
+        id=int(sc.id),
+        is_bot=False,
+        first_name=(sc.title or sc.username or "Kanal")[:64],
+        username=sc.username,
+    )
 
   all_users_map = _collect_all_known_users()
   matched_ids = _find_target_users_in_map(all_users_map, raw_args, reply_user)
@@ -1918,14 +1954,14 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
     display_label = html.escape(str(all_users_map[target_uid].get("name") or target_uid))
   else:
     q_clean = raw_args.strip()
-    if q_clean.isdigit():
+    if q_clean.lstrip("-").isdigit():
       target_uid = int(q_clean)
       display_label = f"<code>{target_uid}</code>"
     elif reply_user:
       target_uid = reply_user.id
       display_label = html.escape(get_display_name(reply_user))
 
-  if not target_uid or target_uid <= 0:
+  if not target_uid or target_uid == 0:
     await message.answer(
         "❌ Foydalanuvchi topilmadi.\n"
         "Foydalanish:\n"
@@ -2099,13 +2135,30 @@ async def check_answer(message: types.Message):
     expected_variants.update(normalize_answer(ans))
 
   if user_variants & expected_variants:
-    user_id = message.from_user.id if message.from_user else 0
-    user_name = get_display_name(message.from_user)
-    username = (
-        message.from_user.username
-        if message.from_user and message.from_user.username
-        else ""
-    )
+    if message.sender_chat and not message.from_user:
+      user_id = int(message.sender_chat.id)
+      user_name = (
+          message.sender_chat.title
+          or message.sender_chat.username
+          or "Kanal"
+      ).strip()
+      username = (message.sender_chat.username or "").strip().lstrip("@")
+    elif message.from_user and message.from_user.id == 777000 and message.sender_chat:
+      user_id = int(message.sender_chat.id)
+      user_name = (
+          message.sender_chat.title
+          or message.sender_chat.username
+          or get_display_name(message.from_user)
+      ).strip()
+      username = (message.sender_chat.username or "").strip().lstrip("@")
+    else:
+      user_id = message.from_user.id if message.from_user else 0
+      user_name = get_display_name(message.from_user)
+      username = (
+          message.from_user.username
+          if message.from_user and message.from_user.username
+          else ""
+      )
     scores = chat_game["scores"]
 
     if user_id not in scores:
