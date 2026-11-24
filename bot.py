@@ -1924,14 +1924,14 @@ async def cmd_reyting_tekshir(message: types.Message, command: CommandObject):
   query = (command.args or "").strip()
   if not query:
     await message.answer(
-        "Foydalanish: <code>/reyting_tekshir &lt;ism | @username | id&gt;</code>",
+        "Foydalanish: <code>/reyting_tekshir &lt;ism | @username | id | ball&gt;</code>",
         parse_mode=ParseMode.HTML,
     )
     return
 
   q_low = query.lstrip("@").lower()
-  is_id = query.lstrip("-").isdigit()
-  id_val = int(query) if is_id else None
+  is_num = query.lstrip("-").isdigit()
+  num_val = int(query) if is_num else None
 
   found_rows = []
   total_pts = 0
@@ -1952,26 +1952,33 @@ async def cmd_reyting_tekshir(message: types.Message, command: CommandObject):
         continue
       u_name = str(info.get("name") or "")
       u_uname = str(info.get("username") or "").lstrip("@")
+      try:
+        pts = int(float(info.get("score", 0)))
+      except (TypeError, ValueError):
+        pts = 0
       match = False
-      if is_id and uid_int == id_val:
+      if is_num and (uid_int == num_val or pts == num_val):
         match = True
-      elif q_low and (q_low in u_name.lower() or (u_uname and q_low in u_uname.lower())):
+      elif q_low and (
+          q_low in u_name.lower()
+          or (u_uname and q_low in u_uname.lower())
+          or (u_uname and q_low in f"@{u_uname.lower()}")
+      ):
         match = True
       if match:
-        try:
-          pts = int(float(info.get("score", 0)))
-        except (TypeError, ValueError):
-          pts = 0
         total_pts += pts
         excl = "Ha (chiqarilgan)" if uid_int in global_excluded_users else "Yo'q"
+        uname_str = f" (@{html.escape(u_uname)})" if u_uname else ""
         found_rows.append(
             f"• <b>{html.escape(g_title)}</b> (<code>{cid}</code>): "
-            f"<b>{html.escape(u_name)}</b> (<code>{uid_int}</code>) — <b>{pts} ball</b> | Chiqarilganmi: <b>{excl}</b>"
+            f"<b>{html.escape(u_name)}</b>{uname_str} (<code>{uid_int}</code>) — <b>{pts} ball</b> | Chiqarilganmi: <b>{excl}</b>"
         )
 
   if not found_rows:
     await message.answer(
-        f"🔍 <code>{html.escape(query)}</code> bo'yicha hech qanday ball topilmadi.",
+        f"🔍 <code>{html.escape(query)}</code> bo'yicha hech qanday ball topilmadi.\n"
+        f"Agar kanalni qo'lda 39700 ball bilan umumiy reytingga qo'shmoqchi bo'lsangiz:\n"
+        f"<code>/umumiyga_qosh {html.escape(query)} | 39700</code>",
         parse_mode=ParseMode.HTML,
     )
     return
@@ -2117,7 +2124,6 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
   points_note = ""
   if explicit_points is not None:
     if not found_existing or current_total == 0:
-      # Create or set initial score without doubling an already-existing 40,000 score
       score_cid = message.chat.id if message.chat.type != "private" else None
       if score_cid is None:
         active_cids = [cid for cid in games.keys() if int(cid) < 0]
@@ -2139,10 +2145,16 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
       current_total = explicit_points
       points_note = f"\n📊 Umumiy balli: <b>{current_total} ball</b>"
     else:
-      # Already has existing score in database — preserve it and don't double-count
       points_note = f"\n📊 Mavjud balli saqlab qolindi: <b>{current_total} ball</b>"
   else:
-    points_note = f"\n📊 Hozirgi umumiy balli: <b>{current_total} ball</b>"
+    if not found_existing and current_total == 0:
+      points_note = (
+          "\n⚠️ Bu nom/ID bazadagi guruh ballarida topilmadi (0 ball).\n"
+          "Agar guruhdagi 39700 ballini berib qo'shmoqchi bo'lsangiz:\n"
+          f"<code>/umumiyga_qosh {html.unescape(display_label)} | 39700</code>"
+      )
+    else:
+      points_note = f"\n📊 Hozirgi umumiy balli: <b>{current_total} ball</b>"
 
   await message.answer(
       f"✅ <b>{display_label}</b> (<code>{target_uid}</code>) umumiy"
