@@ -1545,6 +1545,64 @@ async def cmd_reyting(message: types.Message):
       format_scores_text(chat_game["scores"]), parse_mode=ParseMode.HTML
   )
 
+def format_global_top20_text(all_games: dict) -> str:
+  totals: dict[int, dict] = {}
+  for gdata in all_games.values():
+    if not isinstance(gdata, dict):
+      continue
+    scores = gdata.get("scores", {})
+    if not isinstance(scores, dict):
+      continue
+    for uid, info in scores.items():
+      if not isinstance(info, dict):
+        continue
+      try:
+        uid_int = int(uid)
+      except (TypeError, ValueError):
+        continue
+      pts = int(info.get("score", 0))
+      if pts <= 0:
+        continue
+      name = str(info.get("name") or "O'yinchi").strip() or "O'yinchi"
+      if uid_int not in totals:
+        totals[uid_int] = {"name": name, "score": 0}
+      else:
+        if name and name != "O'yinchi":
+          totals[uid_int]["name"] = name
+      totals[uid_int]["score"] += pts
+
+  if not totals:
+    return "Hozircha guruhlarda umumiy reyting ballari yo'q."
+
+  top_20 = sorted(
+      totals.items(), key=lambda item: item[1]["score"], reverse=True
+  )[:20]
+
+  lines = ["🏆 <b>BARCHA GURUHLAR BO'YICHA UMUMIY REYTING (TOP 20):</b>\n"]
+  for idx, (_, data) in enumerate(top_20, start=1):
+    medal = (
+        "🥇 "
+        if idx == 1
+        else ("🥈 " if idx == 2 else ("🥉 " if idx == 3 else "🎖️ "))
+    )
+    safe_name = html.escape(str(data.get("name") or "O'yinchi"))
+    lines.append(f"{medal}{safe_name} — {data['score']} ball")
+
+  return "\n".join(lines)
+
+
+@dp.message(Command("umumiyteyting"))
+async def cmd_umumiyteyting(message: types.Message):
+  if message.chat.type != "private":
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
+
+  await message.answer(
+      format_global_top20_text(games), parse_mode=ParseMode.HTML
+  )
+
 
 @dp.message(Command("tugatish"))
 async def cmd_tugatish(message: types.Message):
