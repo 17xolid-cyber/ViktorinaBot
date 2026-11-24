@@ -993,6 +993,22 @@ async def cmd_start(message: types.Message, command: CommandObject):
   )
 
 
+async def send_long_html_blocks(message: types.Message, blocks: list[str], chunk_size: int = 3500) -> None:
+  if not blocks:
+    return
+  current_chunk = ""
+  for block in blocks:
+    separator = "\n\n" if current_chunk else ""
+    if len(current_chunk) + len(separator) + len(block) > chunk_size:
+      if current_chunk:
+        await message.answer(current_chunk, parse_mode=ParseMode.HTML)
+      current_chunk = block
+    else:
+      current_chunk += separator + block
+  if current_chunk:
+    await message.answer(current_chunk, parse_mode=ParseMode.HTML)
+
+
 @dp.message(Command("guruhlar"), F.chat.type == "private")
 async def cmd_guruhlar(message: types.Message):
   """Faqat shaxsiy chatda va faqat ADMIN_ID uchun guruhlar ro'yxatini ko'rsatadi."""
@@ -1035,7 +1051,7 @@ async def cmd_guruhlar(message: types.Message):
         f"   • Muddat: <b>{html.escape(expiry_str)}</b>"
     )
 
-  await message.answer("\n\n".join(lines), parse_mode=ParseMode.HTML)
+  await send_long_html_blocks(message, lines)
 
 
 @dp.message(Command("chiq"))
