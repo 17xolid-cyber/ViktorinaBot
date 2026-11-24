@@ -271,8 +271,13 @@ async def init_db() -> None:
               expires_at TIMESTAMPTZ NULL,
               title TEXT NOT NULL DEFAULT '',
               username TEXT NOT NULL DEFAULT '',
-              in_group BOOLEAN NOT NULL DEFAULT TRUE
+              in_group BOOLEAN NOT NULL DEFAULT TRUE,
+              last_tariff_days INTEGER NULL
           );
+      """)
+      await conn.execute("""
+          ALTER TABLE chat_access
+          ADD COLUMN IF NOT EXISTS last_tariff_days INTEGER NULL;
       """)
       await conn.execute("""
           CREATE TABLE IF NOT EXISTS chat_games (
@@ -316,6 +321,7 @@ def load_access_from_json() -> dict:
             "title": str(info.get("title") or ""),
             "username": str(info.get("username") or "").strip().lstrip("@"),
             "in_group": bool(info.get("in_group", True)),
+            "last_tariff_days": info.get("last_tariff_days"),
         }
     return restored
   except (json.JSONDecodeError, OSError, ValueError):
@@ -330,6 +336,7 @@ def save_access_to_json() -> None:
           "title": str(info.get("title") or ""),
           "username": str(info.get("username") or "").strip().lstrip("@"),
           "in_group": bool(info.get("in_group", True)),
+          "last_tariff_days": info.get("last_tariff_days"),
       }
       for cid, info in chat_access.items()
   }
@@ -350,8 +357,8 @@ async def load_access_async() -> dict:
   try:
     async with db_pool.acquire() as conn:
       rows = await conn.fetch(
-          "SELECT chat_id, active, expires_at, title, username, in_group FROM"
-          " chat_access"
+          "SELECT chat_id, active, expires_at, title, username, in_group,"
+          " last_tariff_days FROM chat_access"
       )
     db_data = {}
     for r in rows:
@@ -362,6 +369,7 @@ async def load_access_async() -> dict:
           "title": str(r["title"] or ""),
           "username": str(r["username"] or "").strip().lstrip("@"),
           "in_group": bool(r["in_group"]),
+          "last_tariff_days": r["last_tariff_days"],
       }
     for cid, info in json_data.items():
       if cid not in db_data:
@@ -379,16 +387,23 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
   exp_dt = _parse_iso_dt(info.get("expires_at"))
   try:
     async with db_pool.acquire() as conn:
+      last_days_val = info.get("last_tariff_days")
+      if last_days_val is not None:
+        try:
+          last_days_val = int(last_days_val)
+        except (TypeError, ValueError):
+          last_days_val = None
       await conn.execute(
           """
-          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group)
-          VALUES ($1, $2, $3, $4, $5, $6)
+          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group, last_tariff_days)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           ON CONFLICT (chat_id) DO UPDATE SET
               active = EXCLUDED.active,
               expires_at = EXCLUDED.expires_at,
               title = CASE WHEN EXCLUDED.title <> '' THEN EXCLUDED.title ELSE chat_access.title END,
-              username = CASE WHEN EXCLUDED.username <> '' THEN EXCLUDED.username ELSE chat_access.username END,
-              in_group = EXCLUDED.in_group
+              username = EXCLUDED.username,
+              in_group = EXCLUDED.in_group,
+              last_tariff_days = COALESCE(EXCLUDED.last_tariff_days, chat_access.last_tariff_days)
           """,
           chat_id,
           bool(info.get("active", False)),
@@ -396,6 +411,7 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
           str(info.get("title") or ""),
           str(info.get("username") or "").strip().lstrip("@"),
           bool(info.get("in_group", True)),
+          last_days_val,
       )
   except Exception as exc:
     print(f"DB ERROR in upsert_chat_access_db: {exc}")
@@ -449,8 +465,11 @@ async def record_group_seen(
   )
   if chat.title:
     existing["title"] = chat.title
-  if hasattr(chat, "username") and chat.username:
-    existing["username"] = chat.username.strip().lstrip("@")
+  existing["username"] = (
+      chat.username.strip().lstrip("@")
+      if getattr(chat, "username", None)
+      else ""
+  )
   if in_group is not None:
     existing["in_group"] = in_group
   chat_access[chat.id] = existing
@@ -460,8 +479,19 @@ async def record_group_seen(
 async def fetch_live_chat_info(chat_id: int) -> dict | None:
   try:
     chat_obj = await bot.get_chat(chat_id=chat_id)
+    if chat_obj.type == "private":
+      await remove_chat_record(chat_id)
+      return None
+
     title = (chat_obj.title or "").strip()
     username = (chat_obj.username or "").strip().lstrip("@")
+    invite_link = (getattr(chat_obj, "invite_link", None) or "").strip()
+
+    if not username and not invite_link:
+      try:
+        invite_link = (await bot.export_chat_invite_link(chat_id=chat_id)).strip()
+      except Exception:
+        invite_link = ""
 
     existing = chat_access.get(
         chat_id,
@@ -475,8 +505,7 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
     )
     if title:
       existing["title"] = title
-    if username:
-      existing["username"] = username
+    existing["username"] = username
     existing["in_group"] = True
     chat_access[chat_id] = existing
     await persist_chat_access(chat_id)
@@ -484,6 +513,7 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
     return {
         "title": title,
         "username": username,
+        "invite_link": invite_link,
     }
   except Exception:
     await remove_chat_record(chat_id)
@@ -680,12 +710,14 @@ async def activate_group_and_notify(
     days = None
 
   existing = chat_access.get(target_cid, {})
+  saved_tariff_days = int(days) if days is not None else 0
   chat_access[target_cid] = {
       "active": True,
       "expires_at": expires_iso,
       "title": existing.get("title", ""),
       "username": existing.get("username", ""),
       "in_group": existing.get("in_group", True),
+      "last_tariff_days": saved_tariff_days,
   }
   await persist_chat_access(target_cid)
 
@@ -1015,7 +1047,9 @@ async def cmd_guruhlar(message: types.Message):
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
-  known_ids = set(chat_access.keys()) | set(games.keys())
+  known_ids = {
+      cid for cid in (set(chat_access.keys()) | set(games.keys())) if int(cid) < 0
+  }
   if not known_ids:
     await message.answer("Hozircha hech qanday guruh qayd etilmagan.")
     return
@@ -1027,18 +1061,22 @@ async def cmd_guruhlar(message: types.Message):
 
     if live:
       title = live["title"] or str(info.get("title") or f"Guruh ({cid})")
-      username = live["username"]
+      group_username = live["username"]
+      invite_link = live.get("invite_link", "")
       presence = "Guruhda bor"
     else:
       title = str(info.get("title") or f"Guruh ({cid})")
-      username = str(info.get("username") or "").strip().lstrip("@")
+      group_username = ""
+      invite_link = ""
       presence = "Chiqarilgan / Kirib bo'lmadi"
 
     safe_title = html.escape(title)
-    if username:
-      link_line = f"   • Havola: https://t.me/{html.escape(username)}\n"
+    if group_username:
+      link_line = f"   • Havola: https://t.me/{html.escape(group_username)}\n"
+    elif invite_link:
+      link_line = f"   • Havola: {html.escape(invite_link)}\n"
     else:
-      link_line = ""
+      link_line = "   • Havola: Yopiq guruh (botga admin huquqi berilmagan)\n"
 
     active = await is_group_active(cid)
     status_label = "Uyg'oq 🟢" if active else "Uxlayabdi 😴"
@@ -1156,6 +1194,26 @@ async def cb_paid_clicked(callback: types.CallbackQuery):
   await callback.answer()
 
 
+def format_previous_tariff_text(target_cid: int) -> str:
+  if not target_cid:
+    return "Avvalgi tarif: <b>Ma'lumot yo'q</b>"
+  info = chat_access.get(target_cid)
+  if not info or "last_tariff_days" not in info or info.get("last_tariff_days") is None:
+    return "Avvalgi tarif: <b>Hali faollashtirilmagan (yangi guruh)</b>"
+  prev_days = info.get("last_tariff_days")
+  if prev_days == 0:
+    return "Avvalgi tarif: <b>Cheksiz (1 umrlik) tarifda ishlagan</b>"
+  if prev_days == 1:
+    return "Avvalgi tarif: <b>1 kunlik tarifda ishlagan</b>"
+  if prev_days == 30:
+    return "Avvalgi tarif: <b>1 oylik (30 kun) tarifda ishlagan</b>"
+  if prev_days == 60:
+    return "Avvalgi tarif: <b>2 oylik (60 kun) tarifda ishlagan</b>"
+  if prev_days == 90:
+    return "Avvalgi tarif: <b>3 oylik (90 kun) tarifda ishlagan</b>"
+  return f"Avvalgi tarif: <b>{prev_days} kunlik tarifda ishlagan</b>"
+
+
 @dp.callback_query(F.data.startswith("tar:"))
 async def cb_select_tariff(callback: types.CallbackQuery):
   parts = (callback.data or "").split(":")
@@ -1209,6 +1267,7 @@ async def cb_select_tariff(callback: types.CallbackQuery):
     days_val = tariff["days"]
     days_info = f"{days_val} kun" if days_val is not None else "Cheksiz"
     activate_cmd = build_activate_command(target_cid, days_val)
+    prev_tariff_line = format_previous_tariff_text(target_cid)
     try:
       await bot.send_message(
           chat_id=ADMIN_ID,
@@ -1216,7 +1275,8 @@ async def cb_select_tariff(callback: types.CallbackQuery):
               "💳 <b>Yangi tarif tanlandi!</b>\n\n"
               f"Foydalanuvchi: {admin_user_link}\n"
               f"Guruh ID: <code>{target_cid}</code>\n"
-              f"Tarif: <b>{html.escape(tariff['label'])}</b>"
+              f"{prev_tariff_line}\n"
+              f"Yangi tarif: <b>{html.escape(tariff['label'])}</b>"
               f" ({html.escape(tariff['price'])}, {days_info})\n\n"
               f"Uyg'otish buyrug'i:\n<code>{activate_cmd}</code>"
           ),
