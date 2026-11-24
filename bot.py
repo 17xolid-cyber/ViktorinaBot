@@ -480,7 +480,6 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
   try:
     chat_obj = await bot.get_chat(chat_id=chat_id)
     if chat_obj.type == "private":
-      await remove_chat_record(chat_id)
       return None
 
     title = (chat_obj.title or "").strip()
@@ -516,7 +515,10 @@ async def fetch_live_chat_info(chat_id: int) -> dict | None:
         "invite_link": invite_link,
     }
   except Exception:
-    await remove_chat_record(chat_id)
+    existing = chat_access.get(chat_id)
+    if existing and existing.get("in_group", True):
+      existing["in_group"] = False
+      await persist_chat_access(chat_id)
     return None
 
 
@@ -1047,14 +1049,14 @@ async def cmd_guruhlar(message: types.Message):
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
-  known_ids = {
-      cid for cid in (set(chat_access.keys()) | set(games.keys())) if int(cid) < 0
-  }
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
   if not known_ids:
     await message.answer("Hozircha hech qanday guruh qayd etilmagan.")
     return
 
-  lines = ["📋 <b>Guruhlar ro'yxati:</b>\n"]
+  lines = [f"📋 <b>Guruhlar ro'yxati (Jami: {len(known_ids)} ta):</b>\n"]
   for idx, cid in enumerate(sorted(known_ids), start=1):
     info = chat_access.get(cid, {})
     live = await fetch_live_chat_info(cid)
@@ -1066,7 +1068,7 @@ async def cmd_guruhlar(message: types.Message):
       presence = "Guruhda bor"
     else:
       title = str(info.get("title") or f"Guruh ({cid})")
-      group_username = ""
+      group_username = str(info.get("username") or "").strip().lstrip("@") if int(cid) < 0 else ""
       invite_link = ""
       presence = "Chiqarilgan / Kirib bo'lmadi"
 
