@@ -1668,7 +1668,11 @@ def format_global_top20_text(all_games: dict) -> str:
         continue
       if uid_int in global_excluded_users:
         continue
-      pts = int(info.get("score", 0))
+      raw_pts = info.get("score", 0)
+      try:
+        pts = int(float(raw_pts))
+      except (TypeError, ValueError):
+        pts = 0
       if pts <= 0:
         continue
       name = str(info.get("name") or "O'yinchi").strip() or "O'yinchi"
@@ -1911,12 +1915,103 @@ async def cmd_umumiydan_ochir(message: types.Message, command: CommandObject):
   )
 
 
-@dp.message(Command("umumiyga_qosh"))
-async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: foydalanuvchini umumiy reytingga qo'shadi."""
+@dp.message(Command("reyting_tekshir"), F.chat.type == "private")
+async def cmd_reyting_tekshir(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: foydalanuvchi yoki kanalning barcha guruhlardagi ballarini va umumiy reyting holatini ko'rsatadi."""
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
+  query = (command.args or "").strip()
+  if not query:
+    await message.answer(
+        "Foydalanish: <code>/reyting_tekshir &lt;ism | @username | id&gt;</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  q_low = query.lstrip("@").lower()
+  is_id = query.lstrip("-").isdigit()
+  id_val = int(query) if is_id else None
+
+  found_rows = []
+  total_pts = 0
+
+  for cid, gdata in games.items():
+    if not isinstance(gdata, dict):
+      continue
+    sc = gdata.get("scores", {})
+    if not isinstance(sc, dict):
+      continue
+    g_title = str(chat_access.get(cid, {}).get("title") or f"Guruh ({cid})")
+    for uid, info in sc.items():
+      if not isinstance(info, dict):
+        continue
+      try:
+        uid_int = int(uid)
+      except (TypeError, ValueError):
+        continue
+      u_name = str(info.get("name") or "")
+      u_uname = str(info.get("username") or "").lstrip("@")
+      match = False
+      if is_id and uid_int == id_val:
+        match = True
+      elif q_low and (q_low in u_name.lower() or (u_uname and q_low in u_uname.lower())):
+        match = True
+      if match:
+        try:
+          pts = int(float(info.get("score", 0)))
+        except (TypeError, ValueError):
+          pts = 0
+        total_pts += pts
+        excl = "Ha (chiqarilgan)" if uid_int in global_excluded_users else "Yo'q"
+        found_rows.append(
+            f"• <b>{html.escape(g_title)}</b> (<code>{cid}</code>): "
+            f"<b>{html.escape(u_name)}</b> (<code>{uid_int}</code>) — <b>{pts} ball</b> | Chiqarilganmi: <b>{excl}</b>"
+        )
+
+  if not found_rows:
+    await message.answer(
+        f"🔍 <code>{html.escape(query)}</code> bo'yicha hech qanday ball topilmadi.",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  text = (
+      f"🔍 <b>Tekshiruv natijasi ({html.escape(query)}):</b>\n"
+      f"Jami ball: <b>{total_pts} ball</b>\n\n"
+      + "\n".join(found_rows)
+  )
+  await message.answer(text, parse_mode=ParseMode.HTML)
+
+
+@dp.message(Command("ochirilganlar"), F.chat.type == "private")
+async def cmd_ochirilganlar(message: types.Message):
+  """Faqat ADMIN_ID uchun: umumiy reytingdan chiqarilgan foydalanuvchi va kanallar ro'yxatini ID bilan ko'rsatadi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  if not global_excluded_users:
+    await message.answer("Hozircha umumiy reytingdan chiqarilgan hech kim yo'q.")
+    return
+
+  all_users_map = _collect_all_known_users()
+  lines = [f"📋 <b>Umumiy reytingdan chiqarilganlar ({len(global_excluded_users)} ta):</b>\n"]
+  for idx_num, uid in enumerate(sorted(global_excluded_users), start=1):
+    info = all_users_map.get(uid, {})
+    u_name = html.escape(str(info.get("name") or f"Foydalanuvchi ({uid})"))
+    uname = str(info.get("username") or "").strip().lstrip("@")
+    uname_part = f" (@{html.escape(uname)})" if uname else ""
+    lines.append(
+        f"{idx_num}. <b>{u_name}</b>{uname_part} — <code>{uid}</code>\n"
+        f"   Qayta qo'shish: <code>/umumiyga_qosh {uid}</code>"
+    )
+
+  await send_long_html_blocks(message, lines)
+
+
+@dp.message(Command("umumiyga_qosh"))
+async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: foydalanuvchini umumiy reytingga qo'shadi."""
   raw_args = (command.args or "").strip()
   reply_user = (
       message.reply_to_message.from_user
@@ -1936,11 +2031,28 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
         username=sc.username,
     )
 
+  query_part = raw_args
+  bonus_points: int | None = None
+
+  if "|" in raw_args:
+    left_side, right_side = raw_args.rsplit("|", 1)
+    r_clean = right_side.strip()
+    if r_clean.lstrip("-").isdigit():
+      bonus_points = int(r_clean)
+      query_part = left_side.strip()
+  else:
+    tokens = raw_args.split()
+    if len(tokens) >= 2 and tokens[-1].lstrip("-").isdigit():
+      if tokens[0].lstrip("-").isdigit() or reply_user:
+        bonus_points = int(tokens[-1])
+        query_part = " ".join(tokens[:-1]).strip()
+
   all_users_map = _collect_all_known_users()
-  matched_ids = _find_target_users_in_map(all_users_map, raw_args, reply_user)
+  matched_ids = _find_target_users_in_map(all_users_map, query_part, reply_user)
 
   target_uid: int | None = None
   display_label = ""
+  resolved_username = ""
 
   if matched_ids:
     if len(matched_ids) > 1:
@@ -1951,31 +2063,74 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
       await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
       return
     target_uid = matched_ids[0]
-    display_label = html.escape(str(all_users_map[target_uid].get("name") or target_uid))
+    raw_name = str(all_users_map[target_uid].get("name") or "").strip()
+    resolved_username = str(all_users_map[target_uid].get("username") or "").strip().lstrip("@")
+    display_label = html.escape(raw_name if raw_name else str(target_uid))
   else:
-    q_clean = raw_args.strip()
+    q_clean = query_part.strip()
     if q_clean.lstrip("-").isdigit():
       target_uid = int(q_clean)
       display_label = f"<code>{target_uid}</code>"
     elif reply_user:
-      target_uid = reply_user.id
-      display_label = html.escape(get_display_name(reply_user))
+      target_uid = int(reply_user.id)
+      raw_name = get_display_name(reply_user)
+      resolved_username = (reply_user.username or "").strip().lstrip("@")
+      display_label = html.escape(raw_name)
+    elif q_clean:
+      import hashlib
+      resolved_username = q_clean.lstrip("@") if q_clean.startswith("@") else ""
+      manual_name = resolved_username or q_clean
+      digest_num = int(hashlib.sha256(q_clean.lower().encode("utf-8")).hexdigest()[:10], 16)
+      target_uid = -100000000000 - digest_num
+      display_label = html.escape(manual_name)
 
   if not target_uid or target_uid == 0:
     await message.answer(
-        "❌ Foydalanuvchi topilmadi.\n"
+        "❌ Foydalanuvchi yoki kanal topilmadi.\n"
         "Foydalanish:\n"
-        "• Xabariga reply qilib: <code>/umumiyga_qosh</code>\n"
-        "• Yoki: <code>/umumiyga_qosh &lt;user_id | @username | ism&gt;</code>",
+        "• Xabariga reply qilib: <code>/umumiyga_qosh</code> yoki <code>/umumiyga_qosh 500</code>\n"
+        "• ID / nom bilan: <code>/umumiyga_qosh -1001234567890 500</code>\n"
+        "• Yoki: <code>/umumiyga_qosh Kanal Nomi | 500</code>",
         parse_mode=ParseMode.HTML,
     )
     return
 
   await remove_global_excluded_user(target_uid)
+
+  points_added_note = ""
+  if bonus_points is not None and bonus_points != 0:
+    score_cid = message.chat.id if message.chat.type != "private" else None
+    if score_cid is None:
+      active_cids = [cid for cid in games.keys() if int(cid) < 0]
+      score_cid = active_cids[0] if active_cids else -1009999999999
+    chat_game = await get_chat_game(score_cid)
+    sc = chat_game["scores"]
+    existing_entry = sc.get(target_uid)
+    clean_name_for_score = (
+        html.unescape(display_label)
+        if not display_label.startswith("<code>")
+        else f"Kanal ({target_uid})"
+    )
+    if isinstance(existing_entry, dict):
+      existing_entry["score"] = int(existing_entry.get("score", 0)) + bonus_points
+      existing_entry["hidden_in_group"] = False
+      if clean_name_for_score and existing_entry.get("name") in (None, "", "O'yinchi"):
+        existing_entry["name"] = clean_name_for_score
+      if resolved_username and not existing_entry.get("username"):
+        existing_entry["username"] = resolved_username
+    else:
+      sc[target_uid] = {
+          "name": clean_name_for_score,
+          "username": resolved_username,
+          "score": bonus_points,
+          "hidden_in_group": False,
+      }
+    await persist_state(score_cid)
+    points_added_note = f"\n➕ Ball qo'shildi: <b>{bonus_points} ball</b>"
+
   await message.answer(
       f"✅ <b>{display_label}</b> (<code>{target_uid}</code>) umumiy"
-      " reytingga qayta qo'shildi! Endi uning ballari umumiy reytingda"
-      " ko'rinadi.",
+      f" reytingga qo'shildi!{points_added_note}",
       parse_mode=ParseMode.HTML,
   )
 
