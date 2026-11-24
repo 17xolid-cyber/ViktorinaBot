@@ -1200,6 +1200,74 @@ async def cmd_guruhlar(message: types.Message):
   await send_long_html_blocks(message, lines)
 
 
+async def _bot_is_group_admin(chat_id: int) -> bool:
+  try:
+    me = await bot.get_me()
+    member = await bot.get_chat_member(chat_id=chat_id, user_id=me.id)
+    return member.status in {"administrator", "creator"}
+  except Exception:
+    return False
+
+
+@dp.message(Command("elon"), F.chat.type == "private")
+async def cmd_elon(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga e'lon yuboradi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  reply_msg = message.reply_to_message
+  text_arg = (command.args or "").strip()
+
+  if not reply_msg and not text_arg:
+    await message.answer(
+        "📢 <b>E'lon yuborish qoidasi:</b>\n\n"
+        "• Matn bilan: <code>/elon E'lon matni</code>\n"
+        "• Yoki biror xabar/rasm/videoga <b>reply</b> qilib: <code>/elon</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
+  group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
+
+  if not group_ids:
+    await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
+    return
+
+  sent_count = 0
+  skipped_not_admin = 0
+  failed_count = 0
+
+  for cid in group_ids:
+    if not await _bot_is_group_admin(cid):
+      skipped_not_admin += 1
+      continue
+
+    try:
+      if reply_msg:
+        await bot.copy_message(
+            chat_id=cid,
+            from_chat_id=reply_msg.chat.id,
+            message_id=reply_msg.message_id,
+        )
+      else:
+        await bot.send_message(chat_id=cid, text=text_arg)
+      sent_count += 1
+    except Exception:
+      failed_count += 1
+    await asyncio.sleep(0.05)
+
+  await message.answer(
+      "📢 <b>E'lon tarqatish yakunlandi:</b>\n\n"
+      f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
+      f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
+      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>",
+      parse_mode=ParseMode.HTML,
+  )
+
+
 @dp.message(Command("chiq"))
 async def cmd_chiq(message: types.Message, command: CommandObject):
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
@@ -1651,8 +1719,50 @@ async def cmd_reyting(message: types.Message):
       format_scores_text(chat_game["scores"]), parse_mode=ParseMode.HTML
   )
 
+
+def _canonical_entity_key(uid_int: int, info: dict) -> tuple[str, str]:
+  """Bir xil kanal yoki foydalanuvchining turli ID/hash yozuvlarini bitta kalitga birlashtiradi."""
+  uname = str(info.get("username") or "").strip().lstrip("@").lower()
+  if uname:
+    return ("username", uname)
+  name = str(info.get("name") or "").strip().lower()
+  if name and not name.startswith("foydalanuvchi (") and not name.startswith("kanal (-"):
+    return ("name", name)
+  return ("id", str(uid_int))
+
+def _collect_excluded_entity_keys() -> set[tuple[str, str]]:
+  excluded_keys: set[tuple[str, str]] = set()
+  if not global_excluded_users:
+    return excluded_keys
+  for uid_int in global_excluded_users:
+    excluded_keys.add(("id", str(uid_int)))
+  for gdata in games.values():
+    if not isinstance(gdata, dict):
+      continue
+    scores = gdata.get("scores", {})
+    if not isinstance(scores, dict):
+      continue
+    for uid, info in scores.items():
+      if not isinstance(info, dict):
+        continue
+      try:
+        uid_int = int(uid)
+      except (TypeError, ValueError):
+        continue
+      if uid_int in global_excluded_users:
+        uname = str(info.get("username") or "").strip().lstrip("@").lower()
+        name = str(info.get("name") or "").strip().lower()
+        if uname:
+          excluded_keys.add(("username", uname))
+        if name and not name.startswith("foydalanuvchi (") and not name.startswith("kanal (-"):
+          excluded_keys.add(("name", name))
+  return excluded_keys
+
+
 def format_global_top20_text(all_games: dict) -> str:
-  totals: dict[int, dict] = {}
+  totals: dict[tuple[str, str], dict] = {}
+  excluded_keys = _collect_excluded_entity_keys()
+
   for gdata in all_games.values():
     if not isinstance(gdata, dict):
       continue
@@ -1668,6 +1778,9 @@ def format_global_top20_text(all_games: dict) -> str:
         continue
       if uid_int in global_excluded_users:
         continue
+      ekey = _canonical_entity_key(uid_int, info)
+      if ekey in excluded_keys or ("id", str(uid_int)) in excluded_keys:
+        continue
       raw_pts = info.get("score", 0)
       try:
         pts = int(float(raw_pts))
@@ -1676,12 +1789,12 @@ def format_global_top20_text(all_games: dict) -> str:
       if pts <= 0:
         continue
       name = str(info.get("name") or "O'yinchi").strip() or "O'yinchi"
-      if uid_int not in totals:
-        totals[uid_int] = {"name": name, "score": 0}
+      if ekey not in totals:
+        totals[ekey] = {"name": name, "score": 0}
       else:
         if name and name != "O'yinchi":
-          totals[uid_int]["name"] = name
-      totals[uid_int]["score"] += pts
+          totals[ekey]["name"] = name
+      totals[ekey]["score"] += pts
 
   if not totals:
     return "Hozircha guruhlarda umumiy reyting ballari yo'q."
@@ -2145,7 +2258,17 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
       current_total = explicit_points
       points_note = f"\n📊 Umumiy balli: <b>{current_total} ball</b>"
     else:
-      points_note = f"\n📊 Mavjud balli saqlab qolindi: <b>{current_total} ball</b>"
+      # Agar mavjud yozuv bo'lsa, ballni yangi qiymatga tenglaymiz
+      updated_any = False
+      for g_cid, gdata in games.items():
+        if isinstance(gdata, dict) and isinstance(gdata.get("scores"), dict) and target_uid in gdata["scores"]:
+          gdata["scores"][target_uid]["score"] = explicit_points
+          gdata["scores"][target_uid]["hidden_in_group"] = False
+          await persist_state(g_cid)
+          updated_any = True
+          break
+      current_total = explicit_points if updated_any else current_total
+      points_note = f"\n📊 Umumiy balli: <b>{current_total} ball</b>"
   else:
     if not found_existing and current_total == 0:
       points_note = (
@@ -2344,12 +2467,36 @@ async def check_answer(message: types.Message):
       )
     scores = chat_game["scores"]
 
+    # Agar bir xil username/nom bilan sintetik (-776...) yoki boshqa yozuv bo'lsa, uning ballini asosiy ID ga o'tkazamiz
+    u_norm = username.strip().lstrip("@").lower()
+    n_norm = user_name.strip().lower()
+    migrated_pts = 0
+    dup_ids_to_remove = []
+    for existing_uid, existing_info in list(scores.items()):
+      if int(existing_uid) == int(user_id) or not isinstance(existing_info, dict):
+        continue
+      e_uname = str(existing_info.get("username") or "").strip().lstrip("@").lower()
+      e_name = str(existing_info.get("name") or "").strip().lower()
+      same_entity = (u_norm and e_uname == u_norm) or (
+          not u_norm and n_norm and e_name == n_norm and not e_name.startswith("kanal (-")
+      )
+      if same_entity:
+        try:
+          migrated_pts += int(float(existing_info.get("score", 0)))
+        except (TypeError, ValueError):
+          pass
+        dup_ids_to_remove.append(existing_uid)
+
+    for dup_uid in dup_ids_to_remove:
+      scores.pop(dup_uid, None)
+
     if user_id not in scores:
-      scores[user_id] = {"name": user_name, "username": username, "score": 0}
+      scores[user_id] = {"name": user_name, "username": username, "score": migrated_pts}
     else:
       scores[user_id]["name"] = user_name
       if username:
         scores[user_id]["username"] = username
+      scores[user_id]["score"] = int(float(scores[user_id].get("score", 0))) + migrated_pts
 
     scores[user_id]["score"] += 100
     scores[user_id]["hidden_in_group"] = False
