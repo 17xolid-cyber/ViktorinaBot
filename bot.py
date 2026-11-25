@@ -1550,6 +1550,668 @@ async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
   )
 
 
+
+# ===================== KUNLIK VA 5 KUNLIK BATL TIZIMI =====================
+
+UZ_TZ = timezone(timedelta(hours=5))
+
+KUNLIK_BATL_DEFAULT_TEXT = (
+    "⚔️ <b>KUNLIK BATL BOSHLANDI!</b>\n\n"
+    "• Har kuni eng yuqori ball olgan guruhlar hisobga olinadi.\n"
+    "• TOP-10 reyting har kuni soat <b>10:00 da</b> avtomatik e'lon qilinadi.\n"
+    "• Istalgan vaqt <code>/kunlik_reyting</code> buyrug'i bilan ko'rishingiz mumkin!"
+)
+
+BESHLIK_BATL_DEFAULT_TEXT = (
+    "🔥 <b>5 KUNLIK BATL BOSHLANDI!</b>\n\n"
+    "• Batl davomiyligi: <b>5 kun</b>.\n"
+    "• Reyting sikl davom etayotgan kunlarda soat <b>22:00 da</b> e'lon qilinadi.\n"
+    "• 5-kun 22:00 da reyting e'lon qilinib, <b>22:10 da</b> yangi 5 kunlik sikl barcha guruhlar uchun <b>0</b> balldan boshlanadi.\n"
+    "• Istalgan vaqt <code>/5kunlik_reyting</code> buyrug'i bilan ko'rishingiz mumkin!"
+)
+
+KUNLIK_BATL_BTN_TEXT = "📊 Kunlik batl reytingi"
+KUNLIK_BATL_BTN_URL = AKSIYA_MINIAPP_URL
+
+BESHLIK_BATL_BTN_TEXT = "🏆 5 kunlik batl reytingi"
+BESHLIK_BATL_BTN_URL = AKSIYA_MINIAPP_URL
+
+KUNLIK_AUTO_HOUR = 10
+KUNLIK_AUTO_MINUTE = 0
+BESHLIK_AUTO_HOUR = 22
+BESHLIK_AUTO_MINUTE = 0
+BESHLIK_RESET_HOUR = 22
+BESHLIK_RESET_MINUTE = 10
+BESHLIK_CYCLE_DAYS = 5
+
+BATL_STATE_FILE = "batl_state.json"
+TEMP_BATL_STATE_FILE = "batl_state.tmp"
+
+batl_state: dict = {
+    "daily_start_date": None,          # YYYY-MM-DD (UZ_TZ)
+    "daily_last_auto_date": None,      # YYYY-MM-DD (UZ_TZ)
+    "daily_baseline_scores": {},       # {str(cid): int}
+    "five_day_start_date": None,       # YYYY-MM-DD (UZ_TZ)
+    "five_day_last_auto_date": None,   # YYYY-MM-DD (UZ_TZ)
+    "five_day_last_reset_date": None,  # YYYY-MM-DD (UZ_TZ)
+    "five_day_baseline_scores": {},    # {str(cid): int}
+}
+
+
+def _now_uz() -> datetime:
+  return datetime.now(UZ_TZ)
+
+
+def _today_uz_str() -> str:
+  return _now_uz().strftime("%Y-%m-%d")
+
+
+def _default_batl_state() -> dict:
+  return {
+      "daily_start_date": None,
+      "daily_last_auto_date": None,
+      "daily_baseline_scores": {},
+      "five_day_start_date": None,
+      "five_day_last_auto_date": None,
+      "five_day_last_reset_date": None,
+      "five_day_baseline_scores": {},
+  }
+
+
+def _sanitize_batl_state(raw: object) -> dict:
+  base = _default_batl_state()
+  if not isinstance(raw, dict):
+    return base
+  for k, v in base.items():
+    if k in raw and raw[k] is not None:
+      base[k] = raw[k]
+  if not isinstance(base.get("daily_baseline_scores"), dict):
+    base["daily_baseline_scores"] = {}
+  if not isinstance(base.get("five_day_baseline_scores"), dict):
+    base["five_day_baseline_scores"] = {}
+  return base
+
+
+def load_batl_state_from_json() -> dict:
+  if not os.path.exists(BATL_STATE_FILE):
+    return _default_batl_state()
+  try:
+    with open(BATL_STATE_FILE, "r", encoding="utf-8") as f:
+      raw = json.load(f)
+    return _sanitize_batl_state(raw)
+  except (json.JSONDecodeError, OSError, ValueError):
+    return _default_batl_state()
+
+
+def save_batl_state_to_json() -> None:
+  try:
+    with open(TEMP_BATL_STATE_FILE, "w", encoding="utf-8") as f:
+      json.dump(batl_state, f, ensure_ascii=False, indent=2)
+      f.flush()
+      os.fsync(f.fileno())
+    os.replace(TEMP_BATL_STATE_FILE, BATL_STATE_FILE)
+  except OSError:
+    pass
+
+
+async def init_batl_db_table() -> None:
+  if not db_pool:
+    return
+  try:
+    async with db_pool.acquire() as conn:
+      await conn.execute("""
+          CREATE TABLE IF NOT EXISTS batl_state (
+              id INTEGER PRIMARY KEY,
+              state_json JSONB NOT NULL DEFAULT '{}'::jsonb
+          );
+      """)
+  except Exception as exc:
+    print(f"DB ERROR in init_batl_db_table: {exc}")
+
+
+async def load_batl_state_async() -> dict:
+  local_data = load_batl_state_from_json()
+  if not db_pool:
+    return local_data
+  try:
+    async with db_pool.acquire() as conn:
+      row = await conn.fetchrow("SELECT state_json FROM batl_state WHERE id = 1")
+    if row and row["state_json"]:
+      raw = row["state_json"]
+      if isinstance(raw, str):
+        raw = json.loads(raw)
+      if isinstance(raw, dict):
+        merged = dict(local_data)
+        merged.update(raw)
+        return _sanitize_batl_state(merged)
+    return local_data
+  except Exception as exc:
+    print(f"DB ERROR in load_batl_state_async: {exc}")
+    return local_data
+
+
+async def persist_batl_state() -> None:
+  save_batl_state_to_json()
+  if not db_pool:
+    return
+  try:
+    async with db_pool.acquire() as conn:
+      await conn.execute(
+          """
+          INSERT INTO batl_state (id, state_json)
+          VALUES (1, $1::jsonb)
+          ON CONFLICT (id) DO UPDATE SET state_json = EXCLUDED.state_json
+          """,
+          json.dumps(batl_state, ensure_ascii=False),
+      )
+  except Exception as exc:
+    print(f"DB ERROR in persist_batl_state: {exc}")
+
+
+def _get_group_top_score(cid: int) -> int:
+  gdata = games.get(cid)
+  if not isinstance(gdata, dict):
+    return 0
+  sc = gdata.get("scores", {})
+  if not isinstance(sc, dict):
+    return 0
+  best = 0
+  for _, info in sc.items():
+    if not isinstance(info, dict):
+      continue
+    try:
+      pts = int(float(info.get("score", 0)))
+    except (TypeError, ValueError):
+      pts = 0
+    if pts > best:
+      best = pts
+  return best
+
+
+def _snapshot_all_group_scores() -> dict[str, int]:
+  snap: dict[str, int] = {}
+  for cid in set(chat_access.keys()) | set(games.keys()):
+    if int(cid) >= 0:
+      continue
+    snap[str(cid)] = _get_group_top_score(int(cid))
+  return snap
+
+
+def _get_tariff_tier(cid: int) -> str:
+  info = chat_access.get(cid) or {}
+  days = info.get("last_tariff_days")
+  try:
+    d_int = int(days) if days is not None else 0
+  except (TypeError, ValueError):
+    d_int = 0
+  if d_int >= 125 or d_int == 0:
+    return "vip"
+  if d_int >= 85:
+    return "premium"
+  if d_int >= 45:
+    return "standart"
+  if d_int >= 20:
+    return "plus"
+  return "none"
+
+
+def _has_public_link(cid: int) -> bool:
+  info = chat_access.get(cid) or {}
+  uname = str(info.get("username") or "").strip().lstrip("@")
+  return bool(uname)
+
+
+async def _ensure_daily_cycle_started() -> None:
+  today_str = _today_uz_str()
+  if batl_state.get("daily_start_date") != today_str:
+    batl_state["daily_start_date"] = today_str
+    batl_state["daily_baseline_scores"] = _snapshot_all_group_scores()
+    await persist_batl_state()
+
+
+async def _start_new_five_day_cycle(start_date_str: str | None = None) -> None:
+  """Yangi 5 kunlik siklni boshlaydi va barcha guruhlar hisobini teng 0 dan start qiladi."""
+  d_str = start_date_str or _today_uz_str()
+  batl_state["five_day_start_date"] = d_str
+  batl_state["five_day_baseline_scores"] = _snapshot_all_group_scores()
+  await persist_batl_state()
+
+
+async def _ensure_five_day_cycle_started() -> None:
+  now_uz = _now_uz()
+  today_dt = now_uz.date()
+  start_str = batl_state.get("five_day_start_date")
+
+  if not start_str:
+    await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+    return
+
+  try:
+    start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
+  except ValueError:
+    await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+    return
+
+  elapsed_days = (today_dt - start_dt).days
+  if elapsed_days > BESHLIK_CYCLE_DAYS:
+    await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+  elif elapsed_days == BESHLIK_CYCLE_DAYS:
+    # 5-kun 22:00 da oxirgi reyting e'lon qilinadi; 22:10 da yangi sikl 0 dan boshlanadi.
+    after_reset_time = (now_uz.hour > BESHLIK_RESET_HOUR) or (
+        now_uz.hour == BESHLIK_RESET_HOUR and now_uz.minute >= BESHLIK_RESET_MINUTE
+    )
+    if after_reset_time:
+      await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+      batl_state["five_day_last_reset_date"] = today_dt.strftime("%Y-%m-%d")
+      await persist_batl_state()
+
+
+def _format_group_entry(
+    cid: int, score_val: int, rank: int, with_link: bool, partner_badge: bool = False
+) -> str:
+  info = chat_access.get(cid) or {}
+  title = str(info.get("title") or f"Guruh ({cid})").strip()
+  safe_title = html.escape(title)
+  uname = str(info.get("username") or "").strip().lstrip("@")
+  medal = (
+      "🥇 " if rank == 1 else ("🥈 " if rank == 2 else ("🥉 " if rank == 3 else f"{rank}. "))
+  )
+  if with_link and uname:
+    name_part = f'<a href="https://t.me/{html.escape(uname)}">{safe_title}</a>'
+  else:
+    name_part = f"<b>{safe_title}</b>"
+  badge = " • <i>Hamkor guruh</i>" if partner_badge else ""
+  return f"{medal}{name_part} — <b>{score_val} ball</b>{badge}"
+
+
+def _compute_cycle_score(cid: int, baseline: dict) -> int:
+  cur_top = _get_group_top_score(cid)
+  try:
+    base_top = int(baseline.get(str(cid), cur_top))
+  except (TypeError, ValueError):
+    base_top = cur_top
+  return max(0, cur_top - base_top)
+
+
+async def build_kunlik_batl_rating_text() -> str:
+  """Kunlik batl reytingi (3 oylik tarif 10-20 hamkor guruh imtiyozi KUNLIK batlda qo'llanmaydi)."""
+  await _ensure_daily_cycle_started()
+  baseline = batl_state.get("daily_baseline_scores") or {}
+  entries: list[tuple[int, int, bool]] = []
+
+  for cid in set(chat_access.keys()) | set(games.keys()):
+    if int(cid) >= 0:
+      continue
+    if not await is_group_active(int(cid)):
+      continue
+    tier = _get_tariff_tier(int(cid))
+    if tier not in {"standart", "premium", "vip"}:
+      continue
+    score_metric = _compute_cycle_score(int(cid), baseline)
+    allow_link = (tier in {"premium", "vip"}) and _has_public_link(int(cid))
+    entries.append((int(cid), score_metric, allow_link))
+
+  entries.sort(key=lambda x: x[1], reverse=True)
+  date_str = batl_state.get("daily_start_date") or _today_uz_str()
+
+  if not entries:
+    return (
+        "📊 <b>KUNLIK BATL REYTINGI (TOP-10)</b>\n"
+        f"📅 Sana: <b>{html.escape(date_str)}</b> • ⏰ E'lon: <b>10:00</b>\n\n"
+        "Hozircha kunlik batlda ishtirok etayotgan guruhlar mavjud emas."
+    )
+
+  lines = [
+      "📊 <b>KUNLIK BATL REYTINGI (TOP-10)</b>",
+      f"📅 Sana: <b>{html.escape(date_str)}</b> • ⏰ E'lon: <b>10:00</b>\n",
+  ]
+  for idx, (cid, pts, allow_link) in enumerate(entries[:10], start=1):
+    lines.append(_format_group_entry(cid, pts, idx, allow_link, partner_badge=False))
+
+  return "\n".join(lines)
+
+
+async def build_beshlik_batl_rating_text() -> str:
+  """5 kunlik batl reytingi: har sikl 0 dan boshlanadi, reyting 22:00 da e'lon qilinadi, 3 oylik (VIP) 10-20 o'rinda hamkor guruh sifatida chiqadi."""
+  await _ensure_five_day_cycle_started()
+  baseline = batl_state.get("five_day_baseline_scores") or {}
+  entries: list[tuple[int, int, bool]] = []
+
+  for cid in set(chat_access.keys()) | set(games.keys()):
+    if int(cid) >= 0:
+      continue
+    if not await is_group_active(int(cid)):
+      continue
+    tier = _get_tariff_tier(int(cid))
+    if tier not in {"plus", "standart", "premium", "vip"}:
+      continue
+    score_metric = _compute_cycle_score(int(cid), baseline)
+    allow_link = (tier in {"premium", "vip"}) and _has_public_link(int(cid))
+    entries.append((int(cid), score_metric, allow_link))
+
+  entries.sort(key=lambda x: x[1], reverse=True)
+  start_str = batl_state.get("five_day_start_date") or _today_uz_str()
+
+  if not entries:
+    return (
+        "🏆 <b>5 KUNLIK BATL REYTINGI (TOP-10)</b>\n"
+        f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b> • ⏰ E'lon: <b>22:00</b>\n\n"
+        "Hozircha 5 kunlik batlda ishtirok etayotgan guruhlar mavjud emas."
+    )
+
+  lines = [
+      "🏆 <b>5 KUNLIK BATL REYTINGI (TOP-10)</b>",
+      f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b> • ⏰ E'lon: <b>22:00</b>\n",
+  ]
+  for idx, (cid, pts, allow_link) in enumerate(entries[:10], start=1):
+    lines.append(_format_group_entry(cid, pts, idx, allow_link, partner_badge=False))
+
+  partner_10_20 = [
+      (cid, pts, _has_public_link(cid))
+      for _, (cid, pts, _) in enumerate(entries[10:20], start=11)
+      if _get_tariff_tier(cid) == "vip"
+  ]
+  if partner_10_20:
+    lines.append("\n🤝 <b>Hamkor guruhlar (10–20 o'rin oralig'ida):</b>")
+    for cid, pts, allow_link in partner_10_20:
+      info = chat_access.get(cid) or {}
+      title = html.escape(str(info.get("title") or f"Guruh ({cid})").strip())
+      uname = str(info.get("username") or "").strip().lstrip("@")
+      name_part = (
+          f'<a href="https://t.me/{html.escape(uname)}">{title}</a>'
+          if (allow_link and uname)
+          else f"<b>{title}</b>"
+      )
+      lines.append(f"• {name_part} — <b>{pts} ball</b> (Hamkor guruh)")
+
+  return "\n".join(lines)
+
+
+def build_kunlik_batl_keyboard() -> InlineKeyboardMarkup:
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text=KUNLIK_BATL_BTN_TEXT,
+                  url=KUNLIK_BATL_BTN_URL,
+              )
+          ]
+      ]
+  )
+
+
+def build_beshlik_batl_keyboard() -> InlineKeyboardMarkup:
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text=BESHLIK_BATL_BTN_TEXT,
+                  url=BESHLIK_BATL_BTN_URL,
+              )
+          ]
+      ]
+  )
+
+
+def _parse_broadcast_targets(raw_arg: str) -> tuple[list[int], bool, str]:
+  target_ids: list[int] = []
+  explicit_target_mode = False
+  text_arg = raw_arg.strip()
+
+  if raw_arg:
+    tokens = raw_arg.split()
+    if tokens[0].lower() == "all":
+      explicit_target_mode = True
+      text_arg = " ".join(tokens[1:]).strip()
+    else:
+      parsed_ids: list[int] = []
+      remaining_tokens: list[str] = []
+      for tok in tokens:
+        cleaned_tok = tok.rstrip(",")
+        if cleaned_tok.lstrip("-").isdigit() and int(cleaned_tok) < 0:
+          parsed_ids.append(int(cleaned_tok))
+        else:
+          remaining_tokens.append(tok)
+      if parsed_ids:
+        explicit_target_mode = True
+        target_ids = parsed_ids
+        text_arg = " ".join(remaining_tokens).strip()
+
+  return target_ids, explicit_target_mode, text_arg
+
+
+async def _send_batl_broadcast(
+    message: types.Message,
+    raw_arg: str,
+    default_text: str,
+    keyboard: InlineKeyboardMarkup,
+    batl_label: str,
+) -> None:
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  reply_msg = message.reply_to_message
+  target_ids, explicit_target_mode, text_arg = _parse_broadcast_targets(raw_arg)
+
+  if explicit_target_mode and target_ids:
+    group_ids = target_ids
+  else:
+    known_ids = set(chat_access.keys()) | set(games.keys())
+    if ADMIN_ID:
+      known_ids.discard(ADMIN_ID)
+    group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
+
+  if not group_ids:
+    await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
+    return
+
+  final_text = text_arg if text_arg else (default_text if not reply_msg else "")
+
+  sent_count = 0
+  skipped_not_admin = 0
+  failed_count = 0
+
+  for cid in group_ids:
+    if not await _bot_is_group_admin(cid):
+      skipped_not_admin += 1
+      continue
+
+    try:
+      if reply_msg:
+        await bot.copy_message(
+            chat_id=cid,
+            from_chat_id=reply_msg.chat.id,
+            message_id=reply_msg.message_id,
+            reply_markup=keyboard,
+        )
+      else:
+        await bot.send_message(
+            chat_id=cid,
+            text=final_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+      sent_count += 1
+    except Exception:
+      failed_count += 1
+    await asyncio.sleep(0.05)
+
+  await message.answer(
+      f"⚔️ <b>{html.escape(batl_label)} tarqatish yakunlandi:</b>\n\n"
+      f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
+      f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
+      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>",
+      parse_mode=ParseMode.HTML,
+  )
+
+
+@dp.message(Command("kunlik_batl"), F.chat.type == "private")
+async def cmd_kunlik_batl(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: kunlik batl e'lonini inline tugma bilan yuboradi."""
+  await _send_batl_broadcast(
+      message=message,
+      raw_arg=(command.args or "").strip(),
+      default_text=KUNLIK_BATL_DEFAULT_TEXT,
+      keyboard=build_kunlik_batl_keyboard(),
+      batl_label="Kunlik batl e'loni",
+  )
+
+
+@dp.message(Command("beshlik_batl", "5kunlik_batl"), F.chat.type == "private")
+async def cmd_beshlik_batl(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: 5 kunlik batl e'lonini inline tugma bilan yuboradi."""
+  await _send_batl_broadcast(
+      message=message,
+      raw_arg=(command.args or "").strip(),
+      default_text=BESHLIK_BATL_DEFAULT_TEXT,
+      keyboard=build_beshlik_batl_keyboard(),
+      batl_label="5 kunlik batl e'loni",
+  )
+
+
+@dp.message(Command("kunlik_reyting"))
+async def cmd_kunlik_reyting(message: types.Message):
+  """Istalgan foydalanuvchi uchun: kunlik batl reytingini ko'rsatadi."""
+  if message.chat.type != "private":
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
+
+  text = await build_kunlik_batl_rating_text()
+  await message.answer(
+      text,
+      parse_mode=ParseMode.HTML,
+      reply_markup=build_kunlik_batl_keyboard(),
+  )
+
+
+@dp.message(Command("5kunlik_reyting", "beshlik_reyting"))
+async def cmd_5kunlik_reyting(message: types.Message):
+  """Istalgan foydalanuvchi uchun: 5 kunlik batl reytingini ko'rsatadi."""
+  if message.chat.type != "private":
+    await record_group_seen(message.chat, in_group=True)
+    if not await is_group_active(message.chat.id):
+      await send_sleeping_group_message(message)
+      return
+
+  text = await build_beshlik_batl_rating_text()
+  await message.answer(
+      text,
+      parse_mode=ParseMode.HTML,
+      reply_markup=build_beshlik_batl_keyboard(),
+  )
+
+
+async def publish_daily_battle_rating_to_groups() -> None:
+  """Har kuni soat 10:00 da (UZ_TZ) kunlik batl reytingini faol admin guruhlarga yuboradi."""
+  today_str = _today_uz_str()
+  text = await build_kunlik_batl_rating_text()
+  kb = build_kunlik_batl_keyboard()
+
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
+
+  for cid in sorted(known_ids):
+    if int(cid) >= 0:
+      continue
+    if not await is_group_active(int(cid)):
+      continue
+    if not await _bot_is_group_admin(int(cid)):
+      continue
+    try:
+      await bot.send_message(
+          chat_id=int(cid),
+          text=text,
+          parse_mode=ParseMode.HTML,
+          reply_markup=kb,
+      )
+    except Exception:
+      pass
+    await asyncio.sleep(0.05)
+
+  batl_state["daily_last_auto_date"] = today_str
+  batl_state["daily_start_date"] = today_str
+  batl_state["daily_baseline_scores"] = _snapshot_all_group_scores()
+  await persist_batl_state()
+
+
+async def publish_five_day_battle_rating_to_groups() -> None:
+  """Sikl davom etayotgan kunlarda soat 22:00 da (UZ_TZ) faqat 5 kunlik batl reytingini e'lon qiladi."""
+  today_str = _today_uz_str()
+  text = await build_beshlik_batl_rating_text()
+  kb = build_beshlik_batl_keyboard()
+
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
+
+  for cid in sorted(known_ids):
+    if int(cid) >= 0:
+      continue
+    if not await is_group_active(int(cid)):
+      continue
+    if not await _bot_is_group_admin(int(cid)):
+      continue
+    try:
+      await bot.send_message(
+          chat_id=int(cid),
+          text=text,
+          parse_mode=ParseMode.HTML,
+          reply_markup=kb,
+      )
+    except Exception:
+      pass
+    await asyncio.sleep(0.05)
+
+  batl_state["five_day_last_auto_date"] = today_str
+  await persist_batl_state()
+
+
+async def watch_daily_battle_schedule() -> None:
+  """Har 30 soniyada Toshkent vaqti bilan 10:00 kunlik, 22:00 5 kunlik reyting va 22:10 da yangi 5 kunlik siklni boshlaydi."""
+  while True:
+    try:
+      await _ensure_daily_cycle_started()
+      await _ensure_five_day_cycle_started()
+      now_uz = _now_uz()
+      today_dt = now_uz.date()
+      today_str = today_dt.strftime("%Y-%m-%d")
+
+      if (
+          now_uz.hour == KUNLIK_AUTO_HOUR
+          and now_uz.minute >= KUNLIK_AUTO_MINUTE
+          and batl_state.get("daily_last_auto_date") != today_str
+      ):
+        await publish_daily_battle_rating_to_groups()
+
+      if (
+          now_uz.hour == BESHLIK_AUTO_HOUR
+          and now_uz.minute >= BESHLIK_AUTO_MINUTE
+          and batl_state.get("five_day_last_auto_date") != today_str
+      ):
+        await publish_five_day_battle_rating_to_groups()
+
+      start_str = batl_state.get("five_day_start_date")
+      if start_str:
+        try:
+          start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
+          if (today_dt - start_dt).days >= BESHLIK_CYCLE_DAYS:
+            after_reset = (now_uz.hour > BESHLIK_RESET_HOUR) or (
+                now_uz.hour == BESHLIK_RESET_HOUR
+                and now_uz.minute >= BESHLIK_RESET_MINUTE
+            )
+            if after_reset and batl_state.get("five_day_last_reset_date") != today_str:
+              await _start_new_five_day_cycle(today_str)
+              batl_state["five_day_last_reset_date"] = today_str
+              await persist_batl_state()
+        except ValueError:
+          pass
+    except Exception as exc:
+      print(f"SCHEDULER ERROR in watch_daily_battle_schedule: {exc}")
+    await asyncio.sleep(30)
+
 @dp.message(Command("adminsiz_chiqar", "adminsizlarni_chiqar"))
 async def cmd_adminsiz_chiqar(message: types.Message):
   """Faqat ADMIN_ID uchun: botga admin huquqi berilmagan barcha guruhlardan botni chiqaradi."""
@@ -3029,8 +3691,14 @@ async def main():
   games = await load_state_async()
   chat_access = await load_access_async()
   global_excluded_users = await load_global_excluded_async()
+  global batl_state
+  await init_batl_db_table()
+  batl_state = await load_batl_state_async()
+  await _ensure_daily_cycle_started()
+  await _ensure_five_day_cycle_started()
   await start_web_server()
   asyncio.create_task(watch_admin_deadlines())
+  asyncio.create_task(watch_daily_battle_schedule())
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
 
