@@ -102,12 +102,10 @@ def format_tariff_perks_block(tariff: dict) -> str:
   perks = tariff.get("perks") or []
   if not perks:
     return ""
-  lines = ["
-✨ <b>Tarif imtiyozlari:</b>"]
+  lines = ["\n✨ <b>Tarif imtiyozlari:</b>"]
   for item in perks:
     lines.append(f"• {html.escape(str(item))}")
-  return "
-".join(lines)
+  return "\n".join(lines)
 
 CYR_TO_LAT = {
     "а": "a",
