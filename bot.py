@@ -291,6 +291,14 @@ async def init_db() -> None:
           ADD COLUMN IF NOT EXISTS last_tariff_days INTEGER NULL;
       """)
       await conn.execute("""
+          ALTER TABLE chat_access
+          ADD COLUMN IF NOT EXISTS admin_deadline_at TIMESTAMPTZ NULL;
+      """)
+      await conn.execute("""
+          ALTER TABLE chat_access
+          ADD COLUMN IF NOT EXISTS added_by_user_id BIGINT NULL;
+      """)
+      await conn.execute("""
           CREATE TABLE IF NOT EXISTS chat_games (
               chat_id BIGINT PRIMARY KEY,
               current_question JSONB NULL,
@@ -338,6 +346,8 @@ def load_access_from_json() -> dict:
             "username": str(info.get("username") or "").strip().lstrip("@"),
             "in_group": bool(info.get("in_group", True)),
             "last_tariff_days": info.get("last_tariff_days"),
+            "admin_deadline_at": info.get("admin_deadline_at"),
+            "added_by_user_id": info.get("added_by_user_id"),
         }
     return restored
   except (json.JSONDecodeError, OSError, ValueError):
@@ -353,6 +363,8 @@ def save_access_to_json() -> None:
           "username": str(info.get("username") or "").strip().lstrip("@"),
           "in_group": bool(info.get("in_group", True)),
           "last_tariff_days": info.get("last_tariff_days"),
+          "admin_deadline_at": info.get("admin_deadline_at"),
+          "added_by_user_id": info.get("added_by_user_id"),
       }
       for cid, info in chat_access.items()
   }
@@ -374,11 +386,12 @@ async def load_access_async() -> dict:
     async with db_pool.acquire() as conn:
       rows = await conn.fetch(
           "SELECT chat_id, active, expires_at, title, username, in_group,"
-          " last_tariff_days FROM chat_access"
+          " last_tariff_days, admin_deadline_at, added_by_user_id FROM chat_access"
       )
     db_data = {}
     for r in rows:
       exp_dt = r["expires_at"]
+      adm_dt = r["admin_deadline_at"]
       db_data[int(r["chat_id"])] = {
           "active": bool(r["active"]),
           "expires_at": exp_dt.isoformat() if exp_dt else None,
@@ -386,6 +399,8 @@ async def load_access_async() -> dict:
           "username": str(r["username"] or "").strip().lstrip("@"),
           "in_group": bool(r["in_group"]),
           "last_tariff_days": r["last_tariff_days"],
+          "admin_deadline_at": adm_dt.isoformat() if adm_dt else None,
+          "added_by_user_id": r["added_by_user_id"],
       }
     for cid, info in json_data.items():
       if cid not in db_data:
@@ -401,6 +416,7 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
   if not db_pool:
     return
   exp_dt = _parse_iso_dt(info.get("expires_at"))
+  adm_dt = _parse_iso_dt(info.get("admin_deadline_at"))
   try:
     async with db_pool.acquire() as conn:
       last_days_val = info.get("last_tariff_days")
@@ -409,17 +425,25 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
           last_days_val = int(last_days_val)
         except (TypeError, ValueError):
           last_days_val = None
+      added_by_val = info.get("added_by_user_id")
+      if added_by_val is not None:
+        try:
+          added_by_val = int(added_by_val)
+        except (TypeError, ValueError):
+          added_by_val = None
       await conn.execute(
           """
-          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group, last_tariff_days)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group, last_tariff_days, admin_deadline_at, added_by_user_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           ON CONFLICT (chat_id) DO UPDATE SET
               active = EXCLUDED.active,
               expires_at = EXCLUDED.expires_at,
               title = CASE WHEN EXCLUDED.title <> '' THEN EXCLUDED.title ELSE chat_access.title END,
               username = EXCLUDED.username,
               in_group = EXCLUDED.in_group,
-              last_tariff_days = COALESCE(EXCLUDED.last_tariff_days, chat_access.last_tariff_days)
+              last_tariff_days = COALESCE(EXCLUDED.last_tariff_days, chat_access.last_tariff_days),
+              admin_deadline_at = EXCLUDED.admin_deadline_at,
+              added_by_user_id = COALESCE(EXCLUDED.added_by_user_id, chat_access.added_by_user_id)
           """,
           chat_id,
           bool(info.get("active", False)),
@@ -428,6 +452,8 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
           str(info.get("username") or "").strip().lstrip("@"),
           bool(info.get("in_group", True)),
           last_days_val,
+          adm_dt,
+          added_by_val,
       )
   except Exception as exc:
     print(f"DB ERROR in upsert_chat_access_db: {exc}")
@@ -1086,15 +1112,49 @@ async def is_user_admin(message: types.Message) -> bool:
 
 @dp.my_chat_member()
 async def on_my_chat_member(event: types.ChatMemberUpdated):
-  """Bot guruhga qo'shilganda, chiqarilganda yoki nomi/username o'zgarganda saqlaydi."""
+  """Bot guruhga qo'shilganda, chiqarilganda yoki admin statusi o'zgarganda ishlaydi."""
   if event.chat.type == "private":
     return
+  old_status = event.old_chat_member.status
   new_status = event.new_chat_member.status
   in_group = new_status in {"member", "administrator", "creator"}
   if not in_group:
     await remove_chat_record(event.chat.id)
     return
+
   await record_group_seen(event.chat, in_group=True)
+  info = chat_access.get(event.chat.id, {})
+
+  if new_status in {"administrator", "creator"}:
+    if info.get("admin_deadline_at") is not None:
+      info["admin_deadline_at"] = None
+      chat_access[event.chat.id] = info
+      await persist_chat_access(event.chat.id)
+    return
+
+  was_outside = old_status in {"left", "kicked", "restricted"}
+  if was_outside or not info.get("admin_deadline_at"):
+    deadline_dt = datetime.now(timezone.utc) + timedelta(hours=72)
+    info["admin_deadline_at"] = deadline_dt.isoformat()
+    adder = event.from_user
+    if adder and not adder.is_bot:
+      info["added_by_user_id"] = int(adder.id)
+    chat_access[event.chat.id] = info
+    await persist_chat_access(event.chat.id)
+
+    if adder and not adder.is_bot:
+      group_title = html.escape(event.chat.title or f"Guruh ({event.chat.id})")
+      try:
+        await bot.send_message(
+            chat_id=adder.id,
+            text=(
+                f"⚠️ Siz botni <b>{group_title}</b> guruhiga qo'shdingiz.\n\n"
+                "3 kun ichida admin qilinmasam, guruh bilan hayrlashaman!"
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+      except Exception:
+        pass
 
 
 @dp.message(Command("start"))
@@ -1268,7 +1328,65 @@ async def cmd_elon(message: types.Message, command: CommandObject):
   )
 
 
-@dp.message(Command("chiq"))
+@dp.message(Command("adminsiz_chiqar", "adminsizlarni_chiqar"))
+async def cmd_adminsiz_chiqar(message: types.Message):
+  """Faqat ADMIN_ID uchun: botga admin huquqi berilmagan barcha guruhlardan botni chiqaradi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
+  group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
+
+  if not group_ids:
+    await message.answer("Bazada guruhlar topilmadi.")
+    return
+
+  status_msg = await message.answer("⏳ Admin berilmagan guruhlar tekshirilmoqda...")
+  left_count = 0
+  admin_count = 0
+  removed_stale_count = 0
+  left_names = []
+
+  for cid in group_ids:
+    info = chat_access.get(cid, {})
+    title = str(info.get("title") or f"Guruh ({cid})")
+    try:
+      me = await bot.get_me()
+      member = await bot.get_chat_member(chat_id=cid, user_id=me.id)
+      if member.status in {"administrator", "creator"}:
+        admin_count += 1
+        continue
+      if member.status in {"left", "kicked"}:
+        await remove_chat_record(cid)
+        removed_stale_count += 1
+        continue
+      await bot.leave_chat(chat_id=cid)
+      await remove_chat_record(cid)
+      left_count += 1
+      left_names.append(f"• {html.escape(title)} (<code>{cid}</code>)")
+    except Exception:
+      await remove_chat_record(cid)
+      removed_stale_count += 1
+    await asyncio.sleep(0.05)
+
+  details = "\n".join(left_names[:25])
+  if len(left_names) > 25:
+    details += f"\n... va yana {len(left_names) - 25} ta guruh"
+  details_block = f"\n\n<b>Chiqib ketilgan guruhlar:</b>\n{details}" if details else ""
+
+  await status_msg.edit_text(
+      "✅ <b>Admin berilmagan guruhlarni tozalash yakunlandi:</b>\n\n"
+      f"• Chiqib ketildi: <b>{left_count} ta guruh</b>\n"
+      f"• Admin bo'lgan guruhlar (qoldirildi): <b>{admin_count} ta guruh</b>\n"
+      f"• Eski/o'lik yozuvlar tozalandi: <b>{removed_stale_count} ta</b>"
+      f"{details_block}",
+      parse_mode=ParseMode.HTML,
+  )
+
+
+@dp.message(Command("chiq", "chiqar", "guruhdan_chiq"))
 async def cmd_chiq(message: types.Message, command: CommandObject):
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
@@ -2540,6 +2658,61 @@ async def start_web_server():
   await site.start()
 
 
+async def watch_admin_deadlines() -> None:
+  """Har 10 daqiqada 72 soat (3 kun) ichida admin qilinmagan guruhlarni tekshiradi va chiqib ketadi."""
+  while True:
+    try:
+      now_utc = datetime.now(timezone.utc)
+      for cid, info in list(chat_access.items()):
+        if int(cid) >= 0 or not isinstance(info, dict):
+          continue
+        deadline_str = info.get("admin_deadline_at")
+        if not deadline_str:
+          continue
+        deadline_dt = _parse_iso_dt(deadline_str)
+        if deadline_dt is None or now_utc < deadline_dt:
+          continue
+
+        if await _bot_is_group_admin(cid):
+          info["admin_deadline_at"] = None
+          chat_access[cid] = info
+          await persist_chat_access(cid)
+          continue
+
+        title = str(info.get("title") or f"Guruh ({cid})")
+        adder_id = info.get("added_by_user_id")
+        try:
+          await bot.send_message(
+              chat_id=cid,
+              text="3 kun ichida admin huquqi berilmagani sababli guruh bilan hayrlashaman! 👋",
+          )
+        except Exception:
+          pass
+        try:
+          await bot.leave_chat(chat_id=cid)
+        except Exception:
+          pass
+
+        await remove_chat_record(cid)
+
+        if adder_id:
+          try:
+            await bot.send_message(
+                chat_id=int(adder_id),
+                text=(
+                    f"👋 <b>{html.escape(title)}</b> guruhida 3 kun (72 soat) ichida"
+                    " admin qilinmaganim sababli guruhni tark etdim."
+                ),
+                parse_mode=ParseMode.HTML,
+            )
+          except Exception:
+            pass
+    except Exception as exc:
+      print(f"WATCHER ERROR in watch_admin_deadlines: {exc}")
+
+    await asyncio.sleep(600)
+
+
 async def main():
   global games, chat_access
   await init_db()
@@ -2548,6 +2721,7 @@ async def main():
   chat_access = await load_access_async()
   global_excluded_users = await load_global_excluded_async()
   await start_web_server()
+  asyncio.create_task(watch_admin_deadlines())
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
 
