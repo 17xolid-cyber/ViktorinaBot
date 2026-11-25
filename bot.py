@@ -1588,13 +1588,14 @@ BATL_STATE_FILE = "batl_state.json"
 TEMP_BATL_STATE_FILE = "batl_state.tmp"
 
 batl_state: dict = {
-    "daily_start_date": None,          # YYYY-MM-DD (UZ_TZ)
-    "daily_last_auto_date": None,      # YYYY-MM-DD (UZ_TZ)
-    "daily_baseline_scores": {},       # {str(cid): int}
-    "five_day_start_date": None,       # YYYY-MM-DD (UZ_TZ)
-    "five_day_last_auto_date": None,   # YYYY-MM-DD (UZ_TZ)
-    "five_day_last_reset_date": None,  # YYYY-MM-DD (UZ_TZ)
-    "five_day_baseline_scores": {},    # {str(cid): int}
+    "daily_start_date": None,              # YYYY-MM-DD (UZ_TZ)
+    "daily_last_auto_date": None,          # YYYY-MM-DD (UZ_TZ)
+    "daily_baseline_scores": {},           # {str(cid): int}
+    "five_day_start_date": None,           # YYYY-MM-DD (UZ_TZ)
+    "five_day_last_auto_date": None,       # YYYY-MM-DD (UZ_TZ)
+    "five_day_last_reset_date": None,      # YYYY-MM-DD (UZ_TZ)
+    "five_day_baseline_scores": {},        # {str(cid): int}
+    "five_day_publish_after_cycle": True,  # Yangi boshlangan sikl tugagandan keyin 22:00 reytingni e'lon qilish
 }
 
 
@@ -1615,6 +1616,7 @@ def _default_batl_state() -> dict:
       "five_day_last_auto_date": None,
       "five_day_last_reset_date": None,
       "five_day_baseline_scores": {},
+      "five_day_publish_after_cycle": True,
   }
 
 
@@ -1629,6 +1631,9 @@ def _sanitize_batl_state(raw: object) -> dict:
     base["daily_baseline_scores"] = {}
   if not isinstance(base.get("five_day_baseline_scores"), dict):
     base["five_day_baseline_scores"] = {}
+  base["five_day_publish_after_cycle"] = bool(
+      base.get("five_day_publish_after_cycle", True)
+  )
   return base
 
 
@@ -1769,12 +1774,33 @@ async def _ensure_daily_cycle_started() -> None:
     await persist_batl_state()
 
 
-async def _start_new_five_day_cycle(start_date_str: str | None = None) -> None:
+async def _start_new_five_day_cycle(
+    start_date_str: str | None = None, allow_auto_publish: bool = True
+) -> None:
   """Yangi 5 kunlik siklni boshlaydi va barcha guruhlar hisobini teng 0 dan start qiladi."""
   d_str = start_date_str or _today_uz_str()
   batl_state["five_day_start_date"] = d_str
   batl_state["five_day_baseline_scores"] = _snapshot_all_group_scores()
+  batl_state["five_day_publish_after_cycle"] = allow_auto_publish
   await persist_batl_state()
+
+
+def _is_five_day_auto_publish_active() -> bool:
+  """Bugun boshlangan sikl tugagandan keyingi natijalardan boshlab 22:00 reytingni e'lon qilish faolmi."""
+  if batl_state.get("five_day_publish_after_cycle", True):
+    return True
+  start_str = batl_state.get("five_day_start_date")
+  if not start_str:
+    return True
+  try:
+    start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
+  except ValueError:
+    return True
+  today_dt = _now_uz().date()
+  if (today_dt - start_dt).days >= BESHLIK_CYCLE_DAYS:
+    batl_state["five_day_publish_after_cycle"] = True
+    return True
+  return False
 
 
 async def _ensure_five_day_cycle_started() -> None:
@@ -1783,25 +1809,33 @@ async def _ensure_five_day_cycle_started() -> None:
   start_str = batl_state.get("five_day_start_date")
 
   if not start_str:
-    await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+    await _start_new_five_day_cycle(
+        today_dt.strftime("%Y-%m-%d"), allow_auto_publish=False
+    )
     return
 
   try:
     start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
   except ValueError:
-    await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+    await _start_new_five_day_cycle(
+        today_dt.strftime("%Y-%m-%d"), allow_auto_publish=False
+    )
     return
 
   elapsed_days = (today_dt - start_dt).days
   if elapsed_days > BESHLIK_CYCLE_DAYS:
-    await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+    await _start_new_five_day_cycle(
+        today_dt.strftime("%Y-%m-%d"), allow_auto_publish=True
+    )
   elif elapsed_days == BESHLIK_CYCLE_DAYS:
     # 5-kun 22:00 da oxirgi reyting e'lon qilinadi; 22:10 da yangi sikl 0 dan boshlanadi.
     after_reset_time = (now_uz.hour > BESHLIK_RESET_HOUR) or (
         now_uz.hour == BESHLIK_RESET_HOUR and now_uz.minute >= BESHLIK_RESET_MINUTE
     )
     if after_reset_time:
-      await _start_new_five_day_cycle(today_dt.strftime("%Y-%m-%d"))
+      await _start_new_five_day_cycle(
+          today_dt.strftime("%Y-%m-%d"), allow_auto_publish=True
+      )
       batl_state["five_day_last_reset_date"] = today_dt.strftime("%Y-%m-%d")
       await persist_batl_state()
 
@@ -2189,6 +2223,7 @@ async def watch_daily_battle_schedule() -> None:
       if (
           now_uz.hour == BESHLIK_AUTO_HOUR
           and now_uz.minute >= BESHLIK_AUTO_MINUTE
+          and _is_five_day_auto_publish_active()
           and batl_state.get("five_day_last_auto_date") != today_str
       ):
         await publish_five_day_battle_rating_to_groups()
@@ -2203,7 +2238,7 @@ async def watch_daily_battle_schedule() -> None:
                 and now_uz.minute >= BESHLIK_RESET_MINUTE
             )
             if after_reset and batl_state.get("five_day_last_reset_date") != today_str:
-              await _start_new_five_day_cycle(today_str)
+              await _start_new_five_day_cycle(today_str, allow_auto_publish=True)
               batl_state["five_day_last_reset_date"] = today_str
               await persist_batl_state()
         except ValueError:
