@@ -41,14 +41,73 @@ games = {}
 chat_access = {}
 pending_receipts = {}
 pending_buyers = {}
+pending_tariff_selection = {}
 global_excluded_users: set[int] = set()
 
 TARIFFS = {
-    "15d": {"label": "15 kunga", "days": 15, "price": "12 000 so'm"},
-    "1m": {"label": "1 oyga", "days": 30, "price": "20 000 so'm"},
-    "2m": {"label": "2 oyga", "days": 60, "price": "35 000 so'm"},
-    "3m": {"label": "3 oyga", "days": 90, "price": "50 000 so'm"},
+    "15d": {
+        "label": "15 kunlik — Plus",
+        "days": 20,
+        "base_days": 15,
+        "bonus_days": 5,
+        "price": "12 000 so'm",
+        "perks": [
+            "+5 kun bonus beriladi (jami 20 kun)",
+            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolasiz)",
+        ],
+    },
+    "1m": {
+        "label": "1 oylik — Standart",
+        "days": 45,
+        "base_days": 30,
+        "bonus_days": 15,
+        "price": "20 000 so'm",
+        "perks": [
+            "+15 kun bonus beriladi (jami 45 kun)",
+            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolasiz)",
+            "Kunlik batl reytingiga kiritish (havolasiz)",
+        ],
+    },
+    "2m": {
+        "label": "2 oylik — Premium",
+        "days": 85,
+        "base_days": 60,
+        "bonus_days": 25,
+        "price": "35 000 so'm",
+        "perks": [
+            "+25 kun bonus beriladi (jami 85 kun)",
+            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolali)",
+            "Kunlik batl reytingiga kiritish (havolali)",
+            "15 kunlik yoki 1 oylik obuna uchun bir martalik -50% chegirma",
+        ],
+    },
+    "3m": {
+        "label": "3 oylik — VIP",
+        "days": 125,
+        "base_days": 90,
+        "bonus_days": 35,
+        "price": "50 000 so'm",
+        "perks": [
+            "+35 kun bonus beriladi (jami 125 kun)",
+            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolali)",
+            "Kunlik batl reytingiga kiritish (havolali)",
+            "15 kunlik yoki 1 oylik obuna uchun bir martalik -50% chegirma",
+            "Batl reytingida 10–20 o'rinlar oralig'ida qolib ketgan taqdirda ham reyting ostida o'rinni oshkor qilmasdan e'lon qilish",
+        ],
+    },
 }
+
+
+def format_tariff_perks_block(tariff: dict) -> str:
+  perks = tariff.get("perks") or []
+  if not perks:
+    return ""
+  lines = ["
+✨ <b>Tarif imtiyozlari:</b>"]
+  for item in perks:
+    lines.append(f"• {html.escape(str(item))}")
+  return "
+".join(lines)
 
 CYR_TO_LAT = {
     "а": "a",
@@ -1166,6 +1225,60 @@ async def cmd_start(message: types.Message, command: CommandObject):
       return
 
   args = (command.args or "").strip()
+  if message.chat.type == "private" and args.startswith("buy_"):
+    raw_code = args.replace("buy_", "", 1).strip().lower()
+    if raw_code in TARIFFS and message.from_user:
+      t_info = TARIFFS[raw_code]
+      code_key = raw_code
+      days_num = t_info["days"]
+      t_title = t_info["label"]
+      t_price = t_info["price"]
+      uid = message.from_user.id
+      pending_tariff_selection[uid] = {
+          "code": code_key,
+          "days": days_num,
+          "title": t_title,
+          "price": t_price,
+      }
+      candidate_groups = []
+      for cid, ginfo in sorted(chat_access.items()):
+        if int(cid) >= 0 or not isinstance(ginfo, dict) or not ginfo.get("in_group", True):
+          continue
+        try:
+          member = await bot.get_chat_member(chat_id=cid, user_id=uid)
+          if member.status in {"member", "administrator", "creator"}:
+            gname = str(ginfo.get("title") or f"Guruh ({cid})").strip()
+            candidate_groups.append((cid, gname))
+        except Exception:
+          continue
+
+      if not candidate_groups:
+        await message.answer(
+            f"Siz <b>{html.escape(t_title)}</b> tarifini tanladingiz.\n\n"
+            "Lekin siz a'zo bo'lgan va botimiz mavjud bo'lgan guruh topilmadi. "
+            "Avval guruhga qo'shiling yoki guruh ID raqamini yuboring.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+      buttons = []
+      for cid, gname in candidate_groups[:25]:
+        short_name = gname[:36] + ("…" if len(gname) > 36 else "")
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"📌 {short_name}",
+                callback_data=f"pickgrp:{code_key}:{cid}",
+            )
+        ])
+
+      await message.answer(
+          f"<b>{html.escape(t_title)}</b> tarifini faollashtirmoqchisiz.\n"
+          "Qaysi guruh uchun ushbu tarifni faollashtirmoqchisiz? Guruhni tanlang 👇",
+          reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+          parse_mode=ParseMode.HTML,
+      )
+      return
+
   if message.chat.type == "private" and args.startswith("pay_"):
     raw_cid = args.replace("pay_", "", 1).strip()
     target_cid = None
@@ -1541,6 +1654,91 @@ async def cmd_chiq(message: types.Message, command: CommandObject):
     )
 
 
+@dp.callback_query(F.data.startswith("pickgrp:"))
+async def cb_pick_group_for_tariff(callback: types.CallbackQuery):
+  parts = (callback.data or "").split(":")
+  if len(parts) != 3:
+    await callback.answer()
+    return
+
+  _, code, cid_str = parts
+  tariff = TARIFFS.get(code)
+  if not tariff:
+    await callback.answer("Noto'g'ri tarif", show_alert=True)
+    return
+
+  try:
+    target_cid = int(cid_str)
+  except ValueError:
+    await callback.answer("Guruh ID noto'g'ri", show_alert=True)
+    return
+
+  user = callback.from_user
+  buyer_data = build_user_data(user)
+  if target_cid != 0 and user:
+    pending_buyers[target_cid] = buyer_data
+    pending_receipts[user.id] = {
+        "code": code,
+        "label": tariff["label"],
+        "days": tariff["days"],
+        "price": tariff["price"],
+        "chat_id": target_cid,
+        "buyer_data": buyer_data,
+    }
+
+  admin_user_link = format_admin_profile_link_html(
+      user.id if user else 0,
+      buyer_data,
+  )
+  group_title = html.escape(str(chat_access.get(target_cid, {}).get("title") or f"Guruh ({target_cid})"))
+  duration_title = tariff["label"].replace("ga", "lik")
+  card_display = (
+      html.escape(CARD_NUMBER) if CARD_NUMBER else "<i>Karta kiritilmagan</i>"
+  )
+  perks_block = format_tariff_perks_block(tariff)
+
+  text = (
+      f"Guruh: <b>{group_title}</b> (<code>{target_cid}</code>)\n"
+      f"{html.escape(duration_title)} obuna uchun\n\n"
+      f"<code>{card_display}</code>\n\n"
+      f"raqamiga {html.escape(tariff['price'])} o'tkazasiz🙂\n"
+      f"{perks_block}\n\n"
+      "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
+      " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
+      " yuborasiz"
+  )
+
+  await callback.message.edit_text(
+      text,
+      reply_markup=build_payment_action_keyboard(code, target_cid),
+      parse_mode=ParseMode.HTML,
+  )
+
+  if ADMIN_ID:
+    days_val = tariff["days"]
+    days_info = f"{days_val} kun" if days_val is not None else "Cheksiz"
+    activate_cmd = build_activate_command(target_cid, days_val)
+    prev_tariff_line = format_previous_tariff_text(target_cid)
+    try:
+      await bot.send_message(
+          chat_id=ADMIN_ID,
+          text=(
+              "💳 <b>Yangi tarif tanlandi!</b>\n\n"
+              f"Foydalanuvchi: {admin_user_link}\n"
+              f"Guruh: <b>{group_title}</b> (<code>{target_cid}</code>)\n"
+              f"{prev_tariff_line}\n"
+              f"Yangi tarif: <b>{html.escape(tariff['label'])}</b>"
+              f" ({html.escape(tariff['price'])}, {days_info})\n\n"
+              f"Uyg'otish buyrug'i:\n<code>{activate_cmd}</code>"
+          ),
+          parse_mode=ParseMode.HTML,
+      )
+    except Exception:
+      pass
+
+  await callback.answer()
+
+
 @dp.callback_query(F.data.startswith("back:"))
 async def cb_back_to_tariffs(callback: types.CallbackQuery):
   cid_str = (callback.data or "").split(":", 1)[1]
@@ -1652,11 +1850,13 @@ async def cb_select_tariff(callback: types.CallbackQuery):
       html.escape(CARD_NUMBER) if CARD_NUMBER else "<i>Karta kiritilmagan</i>"
   )
   cid_line = f"\nGuruh ID: <code>{target_cid}</code>" if target_cid != 0 else ""
+  perks_block = format_tariff_perks_block(tariff)
 
   text = (
       f"{html.escape(duration_title)} obuna uchun\n\n"
       f"<code>{card_display}</code>\n\n"
       f"raqamiga {html.escape(tariff['price'])} o'tkazasiz🙂{cid_line}\n"
+      f"{perks_block}\n\n"
       "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
       " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
       " yuborasiz"
