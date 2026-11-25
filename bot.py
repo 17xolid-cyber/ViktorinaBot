@@ -1328,6 +1328,87 @@ async def cmd_elon(message: types.Message, command: CommandObject):
   )
 
 
+AKSIYA_MINIAPP_URL = "https://17xolid-cyber.github.io/aksiya-miniapp/"
+
+
+def build_aksiya_keyboard() -> InlineKeyboardMarkup:
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="Tariflarni ko'rish",
+                  url=AKSIYA_MINIAPP_URL,
+              )
+          ]
+      ]
+  )
+
+
+@dp.message(Command("aksiya_elon"), F.chat.type == "private")
+async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga 'Tariflarni ko'rish' tugmasi bilan e'lon yuboradi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  reply_msg = message.reply_to_message
+  text_arg = (command.args or "").strip()
+
+  if not reply_msg and not text_arg:
+    await message.answer(
+        "📣 <b>Aksiya e'lonini yuborish qoidasi:</b>\n\n"
+        "• Matn bilan: <code>/aksiya_elon E'lon matni</code>\n"
+        "• Yoki biror xabar/rasmga <b>reply</b> qilib: <code>/aksiya_elon</code>",
+        parse_mode=ParseMode.HTML,
+    )
+    return
+
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
+  group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
+
+  if not group_ids:
+    await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
+    return
+
+  kb = build_aksiya_keyboard()
+  sent_count = 0
+  skipped_not_admin = 0
+  failed_count = 0
+
+  for cid in group_ids:
+    if not await _bot_is_group_admin(cid):
+      skipped_not_admin += 1
+      continue
+
+    try:
+      if reply_msg:
+        await bot.copy_message(
+            chat_id=cid,
+            from_chat_id=reply_msg.chat.id,
+            message_id=reply_msg.message_id,
+            reply_markup=kb,
+        )
+      else:
+        await bot.send_message(
+            chat_id=cid,
+            text=text_arg,
+            reply_markup=kb,
+        )
+      sent_count += 1
+    except Exception:
+      failed_count += 1
+    await asyncio.sleep(0.05)
+
+  await message.answer(
+      "📣 <b>Aksiya e'loni tarqatish yakunlandi:</b>\n\n"
+      f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
+      f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
+      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>",
+      parse_mode=ParseMode.HTML,
+  )
+
+
 @dp.message(Command("adminsiz_chiqar", "adminsizlarni_chiqar"))
 async def cmd_adminsiz_chiqar(message: types.Message):
   """Faqat ADMIN_ID uchun: botga admin huquqi berilmagan barcha guruhlardan botni chiqaradi."""
