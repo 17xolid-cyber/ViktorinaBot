@@ -1570,12 +1570,6 @@ BESHLIK_BATL_DEFAULT_TEXT = (
     "• Istalgan vaqt <code>/5kunlik_reyting</code> buyrug'i bilan ko'rishingiz mumkin!"
 )
 
-KUNLIK_BATL_BTN_TEXT = "📊 Kunlik batl reytingi"
-KUNLIK_BATL_BTN_URL = AKSIYA_MINIAPP_URL
-
-BESHLIK_BATL_BTN_TEXT = "🏆 5 kunlik batl reytingi"
-BESHLIK_BATL_BTN_URL = AKSIYA_MINIAPP_URL
-
 KUNLIK_AUTO_HOUR = 10
 KUNLIK_AUTO_MINUTE = 0
 BESHLIK_AUTO_HOUR = 22
@@ -1891,13 +1885,13 @@ async def build_kunlik_batl_rating_text() -> str:
   if not entries:
     return (
         "📊 <b>KUNLIK BATL REYTINGI (TOP-10)</b>\n"
-        f"📅 Sana: <b>{html.escape(date_str)}</b> • ⏰ E'lon: <b>10:00</b>\n\n"
+        f"📅 Sana: <b>{html.escape(date_str)}</b>\n\n"
         "Hozircha kunlik batlda ishtirok etayotgan guruhlar mavjud emas."
     )
 
   lines = [
       "📊 <b>KUNLIK BATL REYTINGI (TOP-10)</b>",
-      f"📅 Sana: <b>{html.escape(date_str)}</b> • ⏰ E'lon: <b>10:00</b>\n",
+      f"📅 Sana: <b>{html.escape(date_str)}</b>\n",
   ]
   for idx, (cid, pts, allow_link) in enumerate(entries[:10], start=1):
     lines.append(_format_group_entry(cid, pts, idx, allow_link, partner_badge=False))
@@ -1929,62 +1923,36 @@ async def build_beshlik_batl_rating_text() -> str:
   if not entries:
     return (
         "🏆 <b>5 KUNLIK BATL REYTINGI (TOP-10)</b>\n"
-        f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b> • ⏰ E'lon: <b>22:00</b>\n\n"
+        f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b>\n\n"
         "Hozircha 5 kunlik batlda ishtirok etayotgan guruhlar mavjud emas."
     )
 
   lines = [
       "🏆 <b>5 KUNLIK BATL REYTINGI (TOP-10)</b>",
-      f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b> • ⏰ E'lon: <b>22:00</b>\n",
+      f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b>\n",
   ]
   for idx, (cid, pts, allow_link) in enumerate(entries[:10], start=1):
     lines.append(_format_group_entry(cid, pts, idx, allow_link, partner_badge=False))
 
   partner_10_20 = [
-      (cid, pts, _has_public_link(cid))
+      (cid, pts)
       for _, (cid, pts, _) in enumerate(entries[10:20], start=11)
       if _get_tariff_tier(cid) == "vip"
   ]
   if partner_10_20:
     lines.append("\n🤝 <b>Hamkor guruhlar (10–20 o'rin oralig'ida):</b>")
-    for cid, pts, allow_link in partner_10_20:
+    for cid, pts in partner_10_20:
       info = chat_access.get(cid) or {}
       title = html.escape(str(info.get("title") or f"Guruh ({cid})").strip())
       uname = str(info.get("username") or "").strip().lstrip("@")
       name_part = (
           f'<a href="https://t.me/{html.escape(uname)}">{title}</a>'
-          if (allow_link and uname)
+          if uname
           else f"<b>{title}</b>"
       )
       lines.append(f"• {name_part} — <b>{pts} ball</b> (Hamkor guruh)")
 
   return "\n".join(lines)
-
-
-def build_kunlik_batl_keyboard() -> InlineKeyboardMarkup:
-  return InlineKeyboardMarkup(
-      inline_keyboard=[
-          [
-              InlineKeyboardButton(
-                  text=KUNLIK_BATL_BTN_TEXT,
-                  url=KUNLIK_BATL_BTN_URL,
-              )
-          ]
-      ]
-  )
-
-
-def build_beshlik_batl_keyboard() -> InlineKeyboardMarkup:
-  return InlineKeyboardMarkup(
-      inline_keyboard=[
-          [
-              InlineKeyboardButton(
-                  text=BESHLIK_BATL_BTN_TEXT,
-                  url=BESHLIK_BATL_BTN_URL,
-              )
-          ]
-      ]
-  )
 
 
 def _parse_broadcast_targets(raw_arg: str) -> tuple[list[int], bool, str]:
@@ -2018,7 +1986,6 @@ async def _send_batl_broadcast(
     message: types.Message,
     raw_arg: str,
     default_text: str,
-    keyboard: InlineKeyboardMarkup,
     batl_label: str,
 ) -> None:
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
@@ -2056,14 +2023,12 @@ async def _send_batl_broadcast(
             chat_id=cid,
             from_chat_id=reply_msg.chat.id,
             message_id=reply_msg.message_id,
-            reply_markup=keyboard,
         )
       else:
         await bot.send_message(
             chat_id=cid,
             text=final_text,
             parse_mode=ParseMode.HTML,
-            reply_markup=keyboard,
         )
       sent_count += 1
     except Exception:
@@ -2081,24 +2046,22 @@ async def _send_batl_broadcast(
 
 @dp.message(Command("kunlik_batl"), F.chat.type == "private")
 async def cmd_kunlik_batl(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: kunlik batl e'lonini inline tugma bilan yuboradi."""
+  """Faqat ADMIN_ID uchun: kunlik batl e'lonini yuboradi."""
   await _send_batl_broadcast(
       message=message,
       raw_arg=(command.args or "").strip(),
       default_text=KUNLIK_BATL_DEFAULT_TEXT,
-      keyboard=build_kunlik_batl_keyboard(),
       batl_label="Kunlik batl e'loni",
   )
 
 
 @dp.message(Command("beshlik_batl", "5kunlik_batl"), F.chat.type == "private")
 async def cmd_beshlik_batl(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: 5 kunlik batl e'lonini inline tugma bilan yuboradi."""
+  """Faqat ADMIN_ID uchun: 5 kunlik batl e'lonini yuboradi."""
   await _send_batl_broadcast(
       message=message,
       raw_arg=(command.args or "").strip(),
       default_text=BESHLIK_BATL_DEFAULT_TEXT,
-      keyboard=build_beshlik_batl_keyboard(),
       batl_label="5 kunlik batl e'loni",
   )
 
@@ -2116,7 +2079,6 @@ async def cmd_kunlik_reyting(message: types.Message):
   await message.answer(
       text,
       parse_mode=ParseMode.HTML,
-      reply_markup=build_kunlik_batl_keyboard(),
   )
 
 
@@ -2133,7 +2095,6 @@ async def cmd_5kunlik_reyting(message: types.Message):
   await message.answer(
       text,
       parse_mode=ParseMode.HTML,
-      reply_markup=build_beshlik_batl_keyboard(),
   )
 
 
@@ -2141,7 +2102,6 @@ async def publish_daily_battle_rating_to_groups() -> None:
   """Har kuni soat 10:00 da (UZ_TZ) kunlik batl reytingini faol admin guruhlarga yuboradi."""
   today_str = _today_uz_str()
   text = await build_kunlik_batl_rating_text()
-  kb = build_kunlik_batl_keyboard()
 
   known_ids = set(chat_access.keys()) | set(games.keys())
   if ADMIN_ID:
@@ -2159,7 +2119,6 @@ async def publish_daily_battle_rating_to_groups() -> None:
           chat_id=int(cid),
           text=text,
           parse_mode=ParseMode.HTML,
-          reply_markup=kb,
       )
     except Exception:
       pass
@@ -2175,7 +2134,6 @@ async def publish_five_day_battle_rating_to_groups() -> None:
   """Sikl davom etayotgan kunlarda soat 22:00 da (UZ_TZ) faqat 5 kunlik batl reytingini e'lon qiladi."""
   today_str = _today_uz_str()
   text = await build_beshlik_batl_rating_text()
-  kb = build_beshlik_batl_keyboard()
 
   known_ids = set(chat_access.keys()) | set(games.keys())
   if ADMIN_ID:
@@ -2193,7 +2151,6 @@ async def publish_five_day_battle_rating_to_groups() -> None:
           chat_id=int(cid),
           text=text,
           parse_mode=ParseMode.HTML,
-          reply_markup=kb,
       )
     except Exception:
       pass
