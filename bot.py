@@ -1380,20 +1380,106 @@ async def _bot_is_group_admin(chat_id: int) -> bool:
     return False
 
 
+broadcast_history: dict[str, dict] = {}
+BROADCAST_HISTORY_FILE = "broadcast_history.json"
+TEMP_BROADCAST_HISTORY_FILE = "broadcast_history.tmp"
+
+
+def _load_broadcast_history() -> dict[str, dict]:
+  if not os.path.exists(BROADCAST_HISTORY_FILE):
+    return {}
+  try:
+    with open(BROADCAST_HISTORY_FILE, "r", encoding="utf-8") as f:
+      raw = json.load(f)
+    return raw if isinstance(raw, dict) else {}
+  except (json.JSONDecodeError, OSError, ValueError):
+    return {}
+
+
+def _save_broadcast_history() -> None:
+  try:
+    with open(TEMP_BROADCAST_HISTORY_FILE, "w", encoding="utf-8") as f:
+      json.dump(broadcast_history, f, ensure_ascii=False, indent=2)
+      f.flush()
+      os.fsync(f.fileno())
+    os.replace(TEMP_BROADCAST_HISTORY_FILE, BROADCAST_HISTORY_FILE)
+  except OSError:
+    pass
+
+
+async def _record_broadcast_entry(
+    label: str, sent_messages: list[tuple[int, int]]
+) -> str:
+  existing_nums = []
+  for k in broadcast_history.keys():
+    if k.isdigit():
+      existing_nums.append(int(k))
+  next_id = str((max(existing_nums) + 1) if existing_nums else 1)
+  broadcast_history[next_id] = {
+      "label": label,
+      "created_at": datetime.now(timezone(timedelta(hours=5))).strftime(
+          "%Y-%m-%d %H:%M"
+      ),
+      "messages": [[int(cid), int(mid)] for cid, mid in sent_messages],
+  }
+  _save_broadcast_history()
+  return next_id
+
+
+def _extract_url_from_args(raw_arg: str) -> tuple[str | None, str]:
+  """Matndan http(s):// yoki t.me/... ko'rinishidagi URL manzilni ajratib oladi."""
+  if not raw_arg:
+    return None, ""
+  tokens = raw_arg.split()
+  found_url: str | None = None
+  kept_tokens: list[str] = []
+  for tok in tokens:
+    cleaned = tok.strip()
+    if found_url is None and (
+        cleaned.startswith("https://")
+        or cleaned.startswith("http://")
+        or cleaned.startswith("t.me/")
+        or cleaned.startswith("https://t.me/")
+        or cleaned.startswith("http://t.me/")
+    ):
+      found_url = (
+          f"https://{cleaned}"
+          if cleaned.startswith("t.me/")
+          else cleaned
+      )
+    else:
+      kept_tokens.append(tok)
+  return found_url, " ".join(kept_tokens).strip()
+
+
+def _build_optional_url_keyboard(
+    url: str | None, button_text: str = "Havolani ochish"
+) -> InlineKeyboardMarkup | None:
+  if not url:
+    return None
+  return InlineKeyboardMarkup(
+      inline_keyboard=[[InlineKeyboardButton(text=button_text, url=url)]]
+  )
+
+
 @dp.message(Command("elon"), F.chat.type == "private")
 async def cmd_elon(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga e'lon yuboradi."""
+  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga oddiy e'lon yuboradi (aksiya URL qo'shilmaydi)."""
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
   reply_msg = message.reply_to_message
-  text_arg = (command.args or "").strip()
+  raw_arg = (command.args or "").strip()
+  custom_url, text_arg = _extract_url_from_args(raw_arg)
 
   if not reply_msg and not text_arg:
     await message.answer(
         "📢 <b>E'lon yuborish qoidasi:</b>\n\n"
-        "• Matn bilan: <code>/elon E'lon matni</code>\n"
-        "• Yoki biror xabar/rasm/videoga <b>reply</b> qilib: <code>/elon</code>",
+        "• Oddiy e'lon (hech qanday sayt tugmasisiz): <code>/elon E'lon matni</code>\n"
+        "• Xabarga <b>reply</b> qilib: <code>/elon</code>\n"
+        "• Agar o'zingiz xohlagan URL tugmasini qo'shmoqchi bo'lsangiz: "
+        "<code>/elon https://manzil.uz E'lon matni</code>\n\n"
+        "🗑 Yuborilgan e'lonni o'chirish: <code>/elon_ochir</code>",
         parse_mode=ParseMode.HTML,
     )
     return
@@ -1407,9 +1493,11 @@ async def cmd_elon(message: types.Message, command: CommandObject):
     await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
     return
 
+  kb = _build_optional_url_keyboard(custom_url, button_text="Havolani ochish")
   sent_count = 0
   skipped_not_admin = 0
   failed_count = 0
+  sent_pairs: list[tuple[int, int]] = []
 
   for cid in group_ids:
     if not await _bot_is_group_admin(cid):
@@ -1418,46 +1506,40 @@ async def cmd_elon(message: types.Message, command: CommandObject):
 
     try:
       if reply_msg:
-        await bot.copy_message(
+        sent = await bot.copy_message(
             chat_id=cid,
             from_chat_id=reply_msg.chat.id,
             message_id=reply_msg.message_id,
+            reply_markup=kb,
         )
       else:
-        await bot.send_message(chat_id=cid, text=text_arg)
+        sent = await bot.send_message(
+            chat_id=cid,
+            text=text_arg,
+            reply_markup=kb,
+        )
       sent_count += 1
+      if getattr(sent, "message_id", None):
+        sent_pairs.append((cid, int(sent.message_id)))
     except Exception:
       failed_count += 1
     await asyncio.sleep(0.05)
 
+  b_id = await _record_broadcast_entry("E'lon", sent_pairs)
   await message.answer(
       "📢 <b>E'lon tarqatish yakunlandi:</b>\n\n"
+      f"• E'lon ID: <code>#{b_id}</code>\n"
       f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
       f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
-      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>",
+      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>\n\n"
+      f"🗑 O'chirish uchun: <code>/elon_ochir {b_id}</code>",
       parse_mode=ParseMode.HTML,
-  )
-
-
-AKSIYA_MINIAPP_URL = "https://17xolid-cyber.github.io/aksiya-miniapp/"
-
-
-def build_aksiya_keyboard() -> InlineKeyboardMarkup:
-  return InlineKeyboardMarkup(
-      inline_keyboard=[
-          [
-              InlineKeyboardButton(
-                  text="Tariflarni ko'rish",
-                  url=AKSIYA_MINIAPP_URL,
-              )
-          ]
-      ]
   )
 
 
 @dp.message(Command("aksiya_elon"), F.chat.type == "private")
 async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: tanlangan yoki barcha admin guruhlarga 'Tariflarni ko'rish' tugmasi bilan e'lon yuboradi."""
+  """Faqat ADMIN_ID uchun: faqat o'zingiz kiritgan URL bilan aksiya e'lonini yuboradi (default URL qo'shilmaydi)."""
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
@@ -1466,13 +1548,13 @@ async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
 
   target_ids: list[int] = []
   explicit_target_mode = False
-  text_arg = raw_arg
+  rest_arg = raw_arg
 
   if raw_arg:
     tokens = raw_arg.split()
     if tokens[0].lower() == "all":
       explicit_target_mode = True
-      text_arg = " ".join(tokens[1:]).strip()
+      rest_arg = " ".join(tokens[1:]).strip()
     else:
       parsed_ids: list[int] = []
       remaining_tokens: list[str] = []
@@ -1480,22 +1562,23 @@ async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
         cleaned_tok = tok.rstrip(",")
         if cleaned_tok.lstrip("-").isdigit() and int(cleaned_tok) < 0:
           parsed_ids.append(int(cleaned_tok))
-        elif not parsed_ids:
-          remaining_tokens.append(tok)
         else:
           remaining_tokens.append(tok)
       if parsed_ids:
         explicit_target_mode = True
         target_ids = parsed_ids
-        text_arg = " ".join(remaining_tokens).strip()
+        rest_arg = " ".join(remaining_tokens).strip()
+
+  custom_url, text_arg = _extract_url_from_args(rest_arg)
 
   if not reply_msg and not text_arg:
     await message.answer(
         "📣 <b>Aksiya e'lonini yuborish qoidasi:</b>\n\n"
-        "• Hamma admin guruhlarga (matn bilan): <code>/aksiya_elon E'lon matni</code>\n"
-        "• Xabarga <b>reply</b> qilib (hamma admin guruhlarga): <code>/aksiya_elon</code> yoki <code>/aksiya_elon all</code>\n"
-        "• Aniq guruh(lar)ga (reply bilan): <code>/aksiya_elon -1001234567890</code> yoki <code>/aksiya_elon -100111 -100222</code>\n"
-        "• Aniq guruh(lar)ga (matn bilan): <code>/aksiya_elon -1001234567890 E'lon matni</code>",
+        "• URL bilan: <code>/aksiya_elon https://manzil.uz E'lon matni</code>\n"
+        "• Guruh ID va URL bilan: <code>/aksiya_elon -1001234567890 https://manzil.uz E'lon matni</code>\n"
+        "• Reply bilan + URL: <code>/aksiya_elon https://manzil.uz</code>\n"
+        "• Eslatma: avtomatik URL qo'shilmaydi, manzilni o'zingiz kiritasiz.\n\n"
+        "🗑 O'chirish: <code>/elon_ochir</code>",
         parse_mode=ParseMode.HTML,
     )
     return
@@ -1512,10 +1595,11 @@ async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
     await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
     return
 
-  kb = build_aksiya_keyboard()
+  kb = _build_optional_url_keyboard(custom_url, button_text="Havolani ochish")
   sent_count = 0
   skipped_not_admin = 0
   failed_count = 0
+  sent_pairs: list[tuple[int, int]] = []
 
   for cid in group_ids:
     if not await _bot_is_group_admin(cid):
@@ -1524,31 +1608,110 @@ async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
 
     try:
       if reply_msg:
-        await bot.copy_message(
+        sent = await bot.copy_message(
             chat_id=cid,
             from_chat_id=reply_msg.chat.id,
             message_id=reply_msg.message_id,
             reply_markup=kb,
         )
       else:
-        await bot.send_message(
+        sent = await bot.send_message(
             chat_id=cid,
             text=text_arg,
             reply_markup=kb,
         )
       sent_count += 1
+      if getattr(sent, "message_id", None):
+        sent_pairs.append((cid, int(sent.message_id)))
     except Exception:
       failed_count += 1
     await asyncio.sleep(0.05)
 
+  b_id = await _record_broadcast_entry("Aksiya e'loni", sent_pairs)
   await message.answer(
       "📣 <b>Aksiya e'loni tarqatish yakunlandi:</b>\n\n"
+      f"• E'lon ID: <code>#{b_id}</code>\n"
       f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
       f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
-      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>",
+      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>\n\n"
+      f"🗑 O'chirish uchun: <code>/elon_ochir {b_id}</code>",
       parse_mode=ParseMode.HTML,
   )
 
+
+@dp.message(Command("elon_ochir", "elonni_ochir", "del_elon"), F.chat.type == "private")
+async def cmd_elon_ochir(message: types.Message, command: CommandObject):
+  """Faqat ADMIN_ID uchun: guruhlarga yuborilgan e'lon xabarlarini o'chiradi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  if not broadcast_history:
+    await message.answer("O'chirish uchun saqlangan e'lonlar tarixi topilmadi.")
+    return
+
+  arg = (command.args or "").strip().lstrip("#")
+  if not arg:
+    recent_keys = sorted(
+        broadcast_history.keys(),
+        key=lambda x: int(x) if x.isdigit() else 0,
+        reverse=True,
+    )[:5]
+    lines = [
+        "🗑 <b>Oxirgi yuborilgan e'lonlar:</b>\n"
+    ]
+    for k in recent_keys:
+      item = broadcast_history[k]
+      msg_cnt = len(item.get("messages") or [])
+      created = html.escape(str(item.get("created_at") or ""))
+      lbl = html.escape(str(item.get("label") or "E'lon"))
+      lines.append(
+          f"• <code>#{k}</code> — <b>{lbl}</b> ({msg_cnt} ta xabar, {created})\n"
+          f"  O'chirish: <code>/elon_ochir {k}</code>"
+      )
+    lines.append("\nBarcha oxirgi e'lonni o'chirish: <code>/elon_ochir all</code>")
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+    return
+
+  if arg.lower() == "all":
+    target_keys = list(broadcast_history.keys())
+  else:
+    if arg not in broadcast_history:
+      await message.answer(
+          f"<code>#{html.escape(arg)}</code> raqamli e'lon topilmadi.",
+          parse_mode=ParseMode.HTML,
+      )
+      return
+    target_keys = [arg]
+
+  deleted_ok = 0
+  deleted_fail = 0
+
+  for k in target_keys:
+    item = broadcast_history.get(k) or {}
+    pairs = item.get("messages") or []
+    for pair in pairs:
+      if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+        continue
+      cid, mid = int(pair[0]), int(pair[1])
+      try:
+        ok = await bot.delete_message(chat_id=cid, message_id=mid)
+        if ok:
+          deleted_ok += 1
+        else:
+          deleted_fail += 1
+      except Exception:
+        deleted_fail += 1
+      await asyncio.sleep(0.05)
+    broadcast_history.pop(k, None)
+
+  _save_broadcast_history()
+
+  await message.answer(
+      "🗑 <b>E'lonni o'chirish yakunlandi:</b>\n\n"
+      f"• O'chirildi: <b>{deleted_ok} ta xabar</b>\n"
+      f"• O'chirilmadi (eski/xato): <b>{deleted_fail} ta xabar</b>",
+      parse_mode=ParseMode.HTML,
+  )
 
 
 # ===================== KUNLIK VA 5 KUNLIK BATL TIZIMI =====================
@@ -1863,6 +2026,8 @@ def _compute_cycle_score(cid: int, baseline: dict) -> int:
 
 async def build_kunlik_batl_rating_text() -> str:
   """Kunlik batl reytingi (3 oylik tarif 10-20 hamkor guruh imtiyozi KUNLIK batlda qo'llanmaydi)."""
+  global broadcast_history
+  broadcast_history = _load_broadcast_history()
   await _ensure_daily_cycle_started()
   baseline = batl_state.get("daily_baseline_scores") or {}
   entries: list[tuple[int, int, bool]] = []
