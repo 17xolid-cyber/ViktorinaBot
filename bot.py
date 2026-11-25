@@ -1346,26 +1346,56 @@ def build_aksiya_keyboard() -> InlineKeyboardMarkup:
 
 @dp.message(Command("aksiya_elon"), F.chat.type == "private")
 async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga 'Tariflarni ko'rish' tugmasi bilan e'lon yuboradi."""
+  """Faqat ADMIN_ID uchun: tanlangan yoki barcha admin guruhlarga 'Tariflarni ko'rish' tugmasi bilan e'lon yuboradi."""
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
   reply_msg = message.reply_to_message
-  text_arg = (command.args or "").strip()
+  raw_arg = (command.args or "").strip()
+
+  target_ids: list[int] = []
+  explicit_target_mode = False
+  text_arg = raw_arg
+
+  if raw_arg:
+    tokens = raw_arg.split()
+    if tokens[0].lower() == "all":
+      explicit_target_mode = True
+      text_arg = " ".join(tokens[1:]).strip()
+    else:
+      parsed_ids: list[int] = []
+      remaining_tokens: list[str] = []
+      for tok in tokens:
+        cleaned_tok = tok.rstrip(",")
+        if cleaned_tok.lstrip("-").isdigit() and int(cleaned_tok) < 0:
+          parsed_ids.append(int(cleaned_tok))
+        elif not parsed_ids:
+          remaining_tokens.append(tok)
+        else:
+          remaining_tokens.append(tok)
+      if parsed_ids:
+        explicit_target_mode = True
+        target_ids = parsed_ids
+        text_arg = " ".join(remaining_tokens).strip()
 
   if not reply_msg and not text_arg:
     await message.answer(
         "📣 <b>Aksiya e'lonini yuborish qoidasi:</b>\n\n"
-        "• Matn bilan: <code>/aksiya_elon E'lon matni</code>\n"
-        "• Yoki biror xabar/rasmga <b>reply</b> qilib: <code>/aksiya_elon</code>",
+        "• Hamma admin guruhlarga (matn bilan): <code>/aksiya_elon E'lon matni</code>\n"
+        "• Xabarga <b>reply</b> qilib (hamma admin guruhlarga): <code>/aksiya_elon</code> yoki <code>/aksiya_elon all</code>\n"
+        "• Aniq guruh(lar)ga (reply bilan): <code>/aksiya_elon -1001234567890</code> yoki <code>/aksiya_elon -100111 -100222</code>\n"
+        "• Aniq guruh(lar)ga (matn bilan): <code>/aksiya_elon -1001234567890 E'lon matni</code>",
         parse_mode=ParseMode.HTML,
     )
     return
 
-  known_ids = set(chat_access.keys()) | set(games.keys())
-  if ADMIN_ID:
-    known_ids.discard(ADMIN_ID)
-  group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
+  if explicit_target_mode and target_ids:
+    group_ids = target_ids
+  else:
+    known_ids = set(chat_access.keys()) | set(games.keys())
+    if ADMIN_ID:
+      known_ids.discard(ADMIN_ID)
+    group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
 
   if not group_ids:
     await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
