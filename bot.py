@@ -41,71 +41,14 @@ games = {}
 chat_access = {}
 pending_receipts = {}
 pending_buyers = {}
-pending_tariff_selection = {}
 global_excluded_users: set[int] = set()
 
 TARIFFS = {
-    "15d": {
-        "label": "15 kunlik — Plus",
-        "days": 20,
-        "base_days": 15,
-        "bonus_days": 5,
-        "price": "12 000 so'm",
-        "perks": [
-            "+5 kun bonus beriladi (jami 20 kun)",
-            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolasiz)",
-        ],
-    },
-    "1m": {
-        "label": "1 oylik — Standart",
-        "days": 45,
-        "base_days": 30,
-        "bonus_days": 15,
-        "price": "20 000 so'm",
-        "perks": [
-            "+15 kun bonus beriladi (jami 45 kun)",
-            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolasiz)",
-            "Kunlik batl reytingiga kiritish (havolasiz)",
-        ],
-    },
-    "2m": {
-        "label": "2 oylik — Premium",
-        "days": 85,
-        "base_days": 60,
-        "bonus_days": 25,
-        "price": "35 000 so'm",
-        "perks": [
-            "+25 kun bonus beriladi (jami 85 kun)",
-            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolali)",
-            "Kunlik batl reytingiga kiritish (havolali)",
-            "15 kunlik yoki 1 oylik obuna uchun bir martalik -50% chegirma",
-        ],
-    },
-    "3m": {
-        "label": "3 oylik — VIP",
-        "days": 125,
-        "base_days": 90,
-        "bonus_days": 35,
-        "price": "50 000 so'm",
-        "perks": [
-            "+35 kun bonus beriladi (jami 125 kun)",
-            "Guruhlar o'rtasidagi 5 kunlik batlga qo'shilish imkoni (havolali)",
-            "Kunlik batl reytingiga kiritish (havolali)",
-            "15 kunlik yoki 1 oylik obuna uchun bir martalik -50% chegirma",
-            "Batl reytingida 10–20 o'rinlar oralig'ida qolib ketgan taqdirda ham reyting ostida o'rinni oshkor qilmasdan e'lon qilish",
-        ],
-    },
+    "15d": {"label": "15 kunga", "days": 15, "price": "12 000 so'm"},
+    "1m": {"label": "1 oyga", "days": 30, "price": "20 000 so'm"},
+    "2m": {"label": "2 oyga", "days": 60, "price": "35 000 so'm"},
+    "3m": {"label": "3 oyga", "days": 90, "price": "50 000 so'm"},
 }
-
-
-def format_tariff_perks_block(tariff: dict) -> str:
-  perks = tariff.get("perks") or []
-  if not perks:
-    return ""
-  lines = ["\n✨ <b>Tarif imtiyozlari:</b>"]
-  for item in perks:
-    lines.append(f"• {html.escape(str(item))}")
-  return "\n".join(lines)
 
 CYR_TO_LAT = {
     "а": "a",
@@ -348,14 +291,6 @@ async def init_db() -> None:
           ADD COLUMN IF NOT EXISTS last_tariff_days INTEGER NULL;
       """)
       await conn.execute("""
-          ALTER TABLE chat_access
-          ADD COLUMN IF NOT EXISTS admin_deadline_at TIMESTAMPTZ NULL;
-      """)
-      await conn.execute("""
-          ALTER TABLE chat_access
-          ADD COLUMN IF NOT EXISTS added_by_user_id BIGINT NULL;
-      """)
-      await conn.execute("""
           CREATE TABLE IF NOT EXISTS chat_games (
               chat_id BIGINT PRIMARY KEY,
               current_question JSONB NULL,
@@ -403,8 +338,6 @@ def load_access_from_json() -> dict:
             "username": str(info.get("username") or "").strip().lstrip("@"),
             "in_group": bool(info.get("in_group", True)),
             "last_tariff_days": info.get("last_tariff_days"),
-            "admin_deadline_at": info.get("admin_deadline_at"),
-            "added_by_user_id": info.get("added_by_user_id"),
         }
     return restored
   except (json.JSONDecodeError, OSError, ValueError):
@@ -420,8 +353,6 @@ def save_access_to_json() -> None:
           "username": str(info.get("username") or "").strip().lstrip("@"),
           "in_group": bool(info.get("in_group", True)),
           "last_tariff_days": info.get("last_tariff_days"),
-          "admin_deadline_at": info.get("admin_deadline_at"),
-          "added_by_user_id": info.get("added_by_user_id"),
       }
       for cid, info in chat_access.items()
   }
@@ -443,12 +374,11 @@ async def load_access_async() -> dict:
     async with db_pool.acquire() as conn:
       rows = await conn.fetch(
           "SELECT chat_id, active, expires_at, title, username, in_group,"
-          " last_tariff_days, admin_deadline_at, added_by_user_id FROM chat_access"
+          " last_tariff_days FROM chat_access"
       )
     db_data = {}
     for r in rows:
       exp_dt = r["expires_at"]
-      adm_dt = r["admin_deadline_at"]
       db_data[int(r["chat_id"])] = {
           "active": bool(r["active"]),
           "expires_at": exp_dt.isoformat() if exp_dt else None,
@@ -456,8 +386,6 @@ async def load_access_async() -> dict:
           "username": str(r["username"] or "").strip().lstrip("@"),
           "in_group": bool(r["in_group"]),
           "last_tariff_days": r["last_tariff_days"],
-          "admin_deadline_at": adm_dt.isoformat() if adm_dt else None,
-          "added_by_user_id": r["added_by_user_id"],
       }
     for cid, info in json_data.items():
       if cid not in db_data:
@@ -473,7 +401,6 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
   if not db_pool:
     return
   exp_dt = _parse_iso_dt(info.get("expires_at"))
-  adm_dt = _parse_iso_dt(info.get("admin_deadline_at"))
   try:
     async with db_pool.acquire() as conn:
       last_days_val = info.get("last_tariff_days")
@@ -482,25 +409,17 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
           last_days_val = int(last_days_val)
         except (TypeError, ValueError):
           last_days_val = None
-      added_by_val = info.get("added_by_user_id")
-      if added_by_val is not None:
-        try:
-          added_by_val = int(added_by_val)
-        except (TypeError, ValueError):
-          added_by_val = None
       await conn.execute(
           """
-          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group, last_tariff_days, admin_deadline_at, added_by_user_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          INSERT INTO chat_access (chat_id, active, expires_at, title, username, in_group, last_tariff_days)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           ON CONFLICT (chat_id) DO UPDATE SET
               active = EXCLUDED.active,
               expires_at = EXCLUDED.expires_at,
               title = CASE WHEN EXCLUDED.title <> '' THEN EXCLUDED.title ELSE chat_access.title END,
               username = EXCLUDED.username,
               in_group = EXCLUDED.in_group,
-              last_tariff_days = COALESCE(EXCLUDED.last_tariff_days, chat_access.last_tariff_days),
-              admin_deadline_at = EXCLUDED.admin_deadline_at,
-              added_by_user_id = COALESCE(EXCLUDED.added_by_user_id, chat_access.added_by_user_id)
+              last_tariff_days = COALESCE(EXCLUDED.last_tariff_days, chat_access.last_tariff_days)
           """,
           chat_id,
           bool(info.get("active", False)),
@@ -509,8 +428,6 @@ async def upsert_chat_access_db(chat_id: int, info: dict) -> None:
           str(info.get("username") or "").strip().lstrip("@"),
           bool(info.get("in_group", True)),
           last_days_val,
-          adm_dt,
-          added_by_val,
       )
   except Exception as exc:
     print(f"DB ERROR in upsert_chat_access_db: {exc}")
@@ -1169,49 +1086,15 @@ async def is_user_admin(message: types.Message) -> bool:
 
 @dp.my_chat_member()
 async def on_my_chat_member(event: types.ChatMemberUpdated):
-  """Bot guruhga qo'shilganda, chiqarilganda yoki admin statusi o'zgarganda ishlaydi."""
+  """Bot guruhga qo'shilganda, chiqarilganda yoki nomi/username o'zgarganda saqlaydi."""
   if event.chat.type == "private":
     return
-  old_status = event.old_chat_member.status
   new_status = event.new_chat_member.status
   in_group = new_status in {"member", "administrator", "creator"}
   if not in_group:
     await remove_chat_record(event.chat.id)
     return
-
   await record_group_seen(event.chat, in_group=True)
-  info = chat_access.get(event.chat.id, {})
-
-  if new_status in {"administrator", "creator"}:
-    if info.get("admin_deadline_at") is not None:
-      info["admin_deadline_at"] = None
-      chat_access[event.chat.id] = info
-      await persist_chat_access(event.chat.id)
-    return
-
-  was_outside = old_status in {"left", "kicked", "restricted"}
-  if was_outside or not info.get("admin_deadline_at"):
-    deadline_dt = datetime.now(timezone.utc) + timedelta(hours=72)
-    info["admin_deadline_at"] = deadline_dt.isoformat()
-    adder = event.from_user
-    if adder and not adder.is_bot:
-      info["added_by_user_id"] = int(adder.id)
-    chat_access[event.chat.id] = info
-    await persist_chat_access(event.chat.id)
-
-    if adder and not adder.is_bot:
-      group_title = html.escape(event.chat.title or f"Guruh ({event.chat.id})")
-      try:
-        await bot.send_message(
-            chat_id=adder.id,
-            text=(
-                f"⚠️ Siz botni <b>{group_title}</b> guruhiga qo'shdingiz.\n\n"
-                "3 kun ichida admin qilinmasam, guruh bilan hayrlashaman!"
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-      except Exception:
-        pass
 
 
 @dp.message(Command("start"))
@@ -1223,60 +1106,6 @@ async def cmd_start(message: types.Message, command: CommandObject):
       return
 
   args = (command.args or "").strip()
-  if message.chat.type == "private" and args.startswith("buy_"):
-    raw_code = args.replace("buy_", "", 1).strip().lower()
-    if raw_code in TARIFFS and message.from_user:
-      t_info = TARIFFS[raw_code]
-      code_key = raw_code
-      days_num = t_info["days"]
-      t_title = t_info["label"]
-      t_price = t_info["price"]
-      uid = message.from_user.id
-      pending_tariff_selection[uid] = {
-          "code": code_key,
-          "days": days_num,
-          "title": t_title,
-          "price": t_price,
-      }
-      candidate_groups = []
-      for cid, ginfo in sorted(chat_access.items()):
-        if int(cid) >= 0 or not isinstance(ginfo, dict) or not ginfo.get("in_group", True):
-          continue
-        try:
-          member = await bot.get_chat_member(chat_id=cid, user_id=uid)
-          if member.status in {"member", "administrator", "creator"}:
-            gname = str(ginfo.get("title") or f"Guruh ({cid})").strip()
-            candidate_groups.append((cid, gname))
-        except Exception:
-          continue
-
-      if not candidate_groups:
-        await message.answer(
-            f"Siz <b>{html.escape(t_title)}</b> tarifini tanladingiz.\n\n"
-            "Lekin siz a'zo bo'lgan va botimiz mavjud bo'lgan guruh topilmadi. "
-            "Avval guruhga qo'shiling yoki guruh ID raqamini yuboring.",
-            parse_mode=ParseMode.HTML,
-        )
-        return
-
-      buttons = []
-      for cid, gname in candidate_groups[:25]:
-        short_name = gname[:36] + ("…" if len(gname) > 36 else "")
-        buttons.append([
-            InlineKeyboardButton(
-                text=f"📌 {short_name}",
-                callback_data=f"pickgrp:{code_key}:{cid}",
-            )
-        ])
-
-      await message.answer(
-          f"<b>{html.escape(t_title)}</b> tarifini faollashtirmoqchisiz.\n"
-          "Qaysi guruh uchun ushbu tarifni faollashtirmoqchisiz? Guruhni tanlang 👇",
-          reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-          parse_mode=ParseMode.HTML,
-      )
-      return
-
   if message.chat.type == "private" and args.startswith("pay_"):
     raw_cid = args.replace("pay_", "", 1).strip()
     target_cid = None
@@ -1380,106 +1209,20 @@ async def _bot_is_group_admin(chat_id: int) -> bool:
     return False
 
 
-broadcast_history: dict[str, dict] = {}
-BROADCAST_HISTORY_FILE = "broadcast_history.json"
-TEMP_BROADCAST_HISTORY_FILE = "broadcast_history.tmp"
-
-
-def _load_broadcast_history() -> dict[str, dict]:
-  if not os.path.exists(BROADCAST_HISTORY_FILE):
-    return {}
-  try:
-    with open(BROADCAST_HISTORY_FILE, "r", encoding="utf-8") as f:
-      raw = json.load(f)
-    return raw if isinstance(raw, dict) else {}
-  except (json.JSONDecodeError, OSError, ValueError):
-    return {}
-
-
-def _save_broadcast_history() -> None:
-  try:
-    with open(TEMP_BROADCAST_HISTORY_FILE, "w", encoding="utf-8") as f:
-      json.dump(broadcast_history, f, ensure_ascii=False, indent=2)
-      f.flush()
-      os.fsync(f.fileno())
-    os.replace(TEMP_BROADCAST_HISTORY_FILE, BROADCAST_HISTORY_FILE)
-  except OSError:
-    pass
-
-
-async def _record_broadcast_entry(
-    label: str, sent_messages: list[tuple[int, int]]
-) -> str:
-  existing_nums = []
-  for k in broadcast_history.keys():
-    if k.isdigit():
-      existing_nums.append(int(k))
-  next_id = str((max(existing_nums) + 1) if existing_nums else 1)
-  broadcast_history[next_id] = {
-      "label": label,
-      "created_at": datetime.now(timezone(timedelta(hours=5))).strftime(
-          "%Y-%m-%d %H:%M"
-      ),
-      "messages": [[int(cid), int(mid)] for cid, mid in sent_messages],
-  }
-  _save_broadcast_history()
-  return next_id
-
-
-def _extract_url_from_args(raw_arg: str) -> tuple[str | None, str]:
-  """Matndan http(s):// yoki t.me/... ko'rinishidagi URL manzilni ajratib oladi."""
-  if not raw_arg:
-    return None, ""
-  tokens = raw_arg.split()
-  found_url: str | None = None
-  kept_tokens: list[str] = []
-  for tok in tokens:
-    cleaned = tok.strip()
-    if found_url is None and (
-        cleaned.startswith("https://")
-        or cleaned.startswith("http://")
-        or cleaned.startswith("t.me/")
-        or cleaned.startswith("https://t.me/")
-        or cleaned.startswith("http://t.me/")
-    ):
-      found_url = (
-          f"https://{cleaned}"
-          if cleaned.startswith("t.me/")
-          else cleaned
-      )
-    else:
-      kept_tokens.append(tok)
-  return found_url, " ".join(kept_tokens).strip()
-
-
-def _build_optional_url_keyboard(
-    url: str | None, button_text: str = "Havolani ochish"
-) -> InlineKeyboardMarkup | None:
-  if not url:
-    return None
-  return InlineKeyboardMarkup(
-      inline_keyboard=[[InlineKeyboardButton(text=button_text, url=url)]]
-  )
-
-
 @dp.message(Command("elon"), F.chat.type == "private")
 async def cmd_elon(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga oddiy e'lon yuboradi (aksiya URL qo'shilmaydi)."""
+  """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga e'lon yuboradi."""
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
 
   reply_msg = message.reply_to_message
-  raw_arg = (command.args or "").strip()
-  custom_url, text_arg = _extract_url_from_args(raw_arg)
+  text_arg = (command.args or "").strip()
 
   if not reply_msg and not text_arg:
     await message.answer(
         "📢 <b>E'lon yuborish qoidasi:</b>\n\n"
-        "• Oddiy e'lon (hech qanday sayt tugmasisiz): <code>/elon E'lon matni</code>\n"
-        "• Xabarga <b>reply</b> qilib: <code>/elon</code>\n"
-        "• Agar o'zingiz xohlagan URL tugmasini qo'shmoqchi bo'lsangiz: "
-        "<code>/elon https://manzil.uz E'lon matni</code>\n\n"
-        "🗑 Yuborilgan e'lonni o'chirish: <code>/elon_ochir</code>",
+        "• Matn bilan: <code>/elon E'lon matni</code>\n"
+        "• Yoki biror xabar/rasm/videoga <b>reply</b> qilib: <code>/elon</code>",
         parse_mode=ParseMode.HTML,
     )
     return
@@ -1492,686 +1235,6 @@ async def cmd_elon(message: types.Message, command: CommandObject):
   if not group_ids:
     await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
     return
-
-  kb = _build_optional_url_keyboard(custom_url, button_text="Havolani ochish")
-  sent_count = 0
-  skipped_not_admin = 0
-  failed_count = 0
-  sent_pairs: list[tuple[int, int]] = []
-
-  for cid in group_ids:
-    if not await _bot_is_group_admin(cid):
-      skipped_not_admin += 1
-      continue
-
-    try:
-      if reply_msg:
-        sent = await bot.copy_message(
-            chat_id=cid,
-            from_chat_id=reply_msg.chat.id,
-            message_id=reply_msg.message_id,
-            reply_markup=kb,
-        )
-      else:
-        sent = await bot.send_message(
-            chat_id=cid,
-            text=text_arg,
-            reply_markup=kb,
-        )
-      sent_count += 1
-      if getattr(sent, "message_id", None):
-        sent_pairs.append((cid, int(sent.message_id)))
-    except Exception:
-      failed_count += 1
-    await asyncio.sleep(0.05)
-
-  b_id = await _record_broadcast_entry("E'lon", sent_pairs)
-  await message.answer(
-      "📢 <b>E'lon tarqatish yakunlandi:</b>\n\n"
-      f"• E'lon ID: <code>#{b_id}</code>\n"
-      f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
-      f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
-      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>\n\n"
-      f"🗑 O'chirish uchun: <code>/elon_ochir {b_id}</code>",
-      parse_mode=ParseMode.HTML,
-  )
-
-
-@dp.message(Command("aksiya_elon"), F.chat.type == "private")
-async def cmd_aksiya_elon(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: faqat o'zingiz kiritgan URL bilan aksiya e'lonini yuboradi (default URL qo'shilmaydi)."""
-  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
-    return
-
-  reply_msg = message.reply_to_message
-  raw_arg = (command.args or "").strip()
-
-  target_ids: list[int] = []
-  explicit_target_mode = False
-  rest_arg = raw_arg
-
-  if raw_arg:
-    tokens = raw_arg.split()
-    if tokens[0].lower() == "all":
-      explicit_target_mode = True
-      rest_arg = " ".join(tokens[1:]).strip()
-    else:
-      parsed_ids: list[int] = []
-      remaining_tokens: list[str] = []
-      for tok in tokens:
-        cleaned_tok = tok.rstrip(",")
-        if cleaned_tok.lstrip("-").isdigit() and int(cleaned_tok) < 0:
-          parsed_ids.append(int(cleaned_tok))
-        else:
-          remaining_tokens.append(tok)
-      if parsed_ids:
-        explicit_target_mode = True
-        target_ids = parsed_ids
-        rest_arg = " ".join(remaining_tokens).strip()
-
-  custom_url, text_arg = _extract_url_from_args(rest_arg)
-
-  if not reply_msg and not text_arg:
-    await message.answer(
-        "📣 <b>Aksiya e'lonini yuborish qoidasi:</b>\n\n"
-        "• URL bilan: <code>/aksiya_elon https://manzil.uz E'lon matni</code>\n"
-        "• Guruh ID va URL bilan: <code>/aksiya_elon -1001234567890 https://manzil.uz E'lon matni</code>\n"
-        "• Reply bilan + URL: <code>/aksiya_elon https://manzil.uz</code>\n"
-        "• Eslatma: avtomatik URL qo'shilmaydi, manzilni o'zingiz kiritasiz.\n\n"
-        "🗑 O'chirish: <code>/elon_ochir</code>",
-        parse_mode=ParseMode.HTML,
-    )
-    return
-
-  if explicit_target_mode and target_ids:
-    group_ids = target_ids
-  else:
-    known_ids = set(chat_access.keys()) | set(games.keys())
-    if ADMIN_ID:
-      known_ids.discard(ADMIN_ID)
-    group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
-
-  if not group_ids:
-    await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
-    return
-
-  kb = _build_optional_url_keyboard(custom_url, button_text="Havolani ochish")
-  sent_count = 0
-  skipped_not_admin = 0
-  failed_count = 0
-  sent_pairs: list[tuple[int, int]] = []
-
-  for cid in group_ids:
-    if not await _bot_is_group_admin(cid):
-      skipped_not_admin += 1
-      continue
-
-    try:
-      if reply_msg:
-        sent = await bot.copy_message(
-            chat_id=cid,
-            from_chat_id=reply_msg.chat.id,
-            message_id=reply_msg.message_id,
-            reply_markup=kb,
-        )
-      else:
-        sent = await bot.send_message(
-            chat_id=cid,
-            text=text_arg,
-            reply_markup=kb,
-        )
-      sent_count += 1
-      if getattr(sent, "message_id", None):
-        sent_pairs.append((cid, int(sent.message_id)))
-    except Exception:
-      failed_count += 1
-    await asyncio.sleep(0.05)
-
-  b_id = await _record_broadcast_entry("Aksiya e'loni", sent_pairs)
-  await message.answer(
-      "📣 <b>Aksiya e'loni tarqatish yakunlandi:</b>\n\n"
-      f"• E'lon ID: <code>#{b_id}</code>\n"
-      f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
-      f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
-      f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>\n\n"
-      f"🗑 O'chirish uchun: <code>/elon_ochir {b_id}</code>",
-      parse_mode=ParseMode.HTML,
-  )
-
-
-@dp.message(Command("elon_ochir", "elonni_ochir", "del_elon"), F.chat.type == "private")
-async def cmd_elon_ochir(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: guruhlarga yuborilgan e'lon xabarlarini o'chiradi."""
-  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
-    return
-
-  if not broadcast_history:
-    await message.answer("O'chirish uchun saqlangan e'lonlar tarixi topilmadi.")
-    return
-
-  arg = (command.args or "").strip().lstrip("#")
-  if not arg:
-    recent_keys = sorted(
-        broadcast_history.keys(),
-        key=lambda x: int(x) if x.isdigit() else 0,
-        reverse=True,
-    )[:5]
-    lines = [
-        "🗑 <b>Oxirgi yuborilgan e'lonlar:</b>\n"
-    ]
-    for k in recent_keys:
-      item = broadcast_history[k]
-      msg_cnt = len(item.get("messages") or [])
-      created = html.escape(str(item.get("created_at") or ""))
-      lbl = html.escape(str(item.get("label") or "E'lon"))
-      lines.append(
-          f"• <code>#{k}</code> — <b>{lbl}</b> ({msg_cnt} ta xabar, {created})\n"
-          f"  O'chirish: <code>/elon_ochir {k}</code>"
-      )
-    lines.append("\nBarcha oxirgi e'lonni o'chirish: <code>/elon_ochir all</code>")
-    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
-    return
-
-  if arg.lower() == "all":
-    target_keys = list(broadcast_history.keys())
-  else:
-    if arg not in broadcast_history:
-      await message.answer(
-          f"<code>#{html.escape(arg)}</code> raqamli e'lon topilmadi.",
-          parse_mode=ParseMode.HTML,
-      )
-      return
-    target_keys = [arg]
-
-  deleted_ok = 0
-  deleted_fail = 0
-
-  for k in target_keys:
-    item = broadcast_history.get(k) or {}
-    pairs = item.get("messages") or []
-    for pair in pairs:
-      if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-        continue
-      cid, mid = int(pair[0]), int(pair[1])
-      try:
-        ok = await bot.delete_message(chat_id=cid, message_id=mid)
-        if ok:
-          deleted_ok += 1
-        else:
-          deleted_fail += 1
-      except Exception:
-        deleted_fail += 1
-      await asyncio.sleep(0.05)
-    broadcast_history.pop(k, None)
-
-  _save_broadcast_history()
-
-  await message.answer(
-      "🗑 <b>E'lonni o'chirish yakunlandi:</b>\n\n"
-      f"• O'chirildi: <b>{deleted_ok} ta xabar</b>\n"
-      f"• O'chirilmadi (eski/xato): <b>{deleted_fail} ta xabar</b>",
-      parse_mode=ParseMode.HTML,
-  )
-
-
-# ===================== KUNLIK VA 5 KUNLIK BATL TIZIMI =====================
-
-UZ_TZ = timezone(timedelta(hours=5))
-
-KUNLIK_BATL_DEFAULT_TEXT = (
-    "⚔️ <b>KUNLIK BATL BOSHLANDI!</b>\n\n"
-    "• Har kuni eng yuqori ball olgan guruhlar hisobga olinadi.\n"
-    "• TOP-10 reyting har kuni soat <b>10:00 da</b> avtomatik e'lon qilinadi.\n"
-    "• Istalgan vaqt <code>/kunlik_reyting</code> buyrug'i bilan ko'rishingiz mumkin!"
-)
-
-BESHLIK_BATL_DEFAULT_TEXT = (
-    "🔥 <b>5 KUNLIK BATL BOSHLANDI!</b>\n\n"
-    "• Batl davomiyligi: <b>5 kun</b>.\n"
-    "• Reyting sikl davom etayotgan kunlarda soat <b>22:00 da</b> e'lon qilinadi.\n"
-    "• 5-kun 22:00 da reyting e'lon qilinib, <b>22:10 da</b> yangi 5 kunlik sikl barcha guruhlar uchun <b>0</b> balldan boshlanadi.\n"
-    "• Istalgan vaqt <code>/5kunlik_reyting</code> buyrug'i bilan ko'rishingiz mumkin!"
-)
-
-KUNLIK_AUTO_HOUR = 10
-KUNLIK_AUTO_MINUTE = 0
-BESHLIK_AUTO_HOUR = 22
-BESHLIK_AUTO_MINUTE = 0
-BESHLIK_RESET_HOUR = 22
-BESHLIK_RESET_MINUTE = 10
-BESHLIK_CYCLE_DAYS = 5
-
-BATL_STATE_FILE = "batl_state.json"
-TEMP_BATL_STATE_FILE = "batl_state.tmp"
-
-batl_state: dict = {
-    "daily_start_date": None,              # YYYY-MM-DD (UZ_TZ)
-    "daily_last_auto_date": None,          # YYYY-MM-DD (UZ_TZ)
-    "daily_baseline_scores": {},           # {str(cid): int}
-    "five_day_start_date": None,           # YYYY-MM-DD (UZ_TZ)
-    "five_day_last_auto_date": None,       # YYYY-MM-DD (UZ_TZ)
-    "five_day_last_reset_date": None,      # YYYY-MM-DD (UZ_TZ)
-    "five_day_baseline_scores": {},        # {str(cid): int}
-    "five_day_publish_after_cycle": True,  # Yangi boshlangan sikl tugagandan keyin 22:00 reytingni e'lon qilish
-}
-
-
-def _now_uz() -> datetime:
-  return datetime.now(UZ_TZ)
-
-
-def _today_uz_str() -> str:
-  return _now_uz().strftime("%Y-%m-%d")
-
-
-def _default_batl_state() -> dict:
-  return {
-      "daily_start_date": None,
-      "daily_last_auto_date": None,
-      "daily_baseline_scores": {},
-      "five_day_start_date": None,
-      "five_day_last_auto_date": None,
-      "five_day_last_reset_date": None,
-      "five_day_baseline_scores": {},
-      "five_day_publish_after_cycle": True,
-  }
-
-
-def _sanitize_batl_state(raw: object) -> dict:
-  base = _default_batl_state()
-  if not isinstance(raw, dict):
-    return base
-  for k, v in base.items():
-    if k in raw and raw[k] is not None:
-      base[k] = raw[k]
-  if not isinstance(base.get("daily_baseline_scores"), dict):
-    base["daily_baseline_scores"] = {}
-  if not isinstance(base.get("five_day_baseline_scores"), dict):
-    base["five_day_baseline_scores"] = {}
-  base["five_day_publish_after_cycle"] = bool(
-      base.get("five_day_publish_after_cycle", True)
-  )
-  return base
-
-
-def load_batl_state_from_json() -> dict:
-  if not os.path.exists(BATL_STATE_FILE):
-    return _default_batl_state()
-  try:
-    with open(BATL_STATE_FILE, "r", encoding="utf-8") as f:
-      raw = json.load(f)
-    return _sanitize_batl_state(raw)
-  except (json.JSONDecodeError, OSError, ValueError):
-    return _default_batl_state()
-
-
-def save_batl_state_to_json() -> None:
-  try:
-    with open(TEMP_BATL_STATE_FILE, "w", encoding="utf-8") as f:
-      json.dump(batl_state, f, ensure_ascii=False, indent=2)
-      f.flush()
-      os.fsync(f.fileno())
-    os.replace(TEMP_BATL_STATE_FILE, BATL_STATE_FILE)
-  except OSError:
-    pass
-
-
-async def init_batl_db_table() -> None:
-  if not db_pool:
-    return
-  try:
-    async with db_pool.acquire() as conn:
-      await conn.execute("""
-          CREATE TABLE IF NOT EXISTS batl_state (
-              id INTEGER PRIMARY KEY,
-              state_json JSONB NOT NULL DEFAULT '{}'::jsonb
-          );
-      """)
-  except Exception as exc:
-    print(f"DB ERROR in init_batl_db_table: {exc}")
-
-
-async def load_batl_state_async() -> dict:
-  local_data = load_batl_state_from_json()
-  if not db_pool:
-    return local_data
-  try:
-    async with db_pool.acquire() as conn:
-      row = await conn.fetchrow("SELECT state_json FROM batl_state WHERE id = 1")
-    if row and row["state_json"]:
-      raw = row["state_json"]
-      if isinstance(raw, str):
-        raw = json.loads(raw)
-      if isinstance(raw, dict):
-        merged = dict(local_data)
-        merged.update(raw)
-        return _sanitize_batl_state(merged)
-    return local_data
-  except Exception as exc:
-    print(f"DB ERROR in load_batl_state_async: {exc}")
-    return local_data
-
-
-async def persist_batl_state() -> None:
-  save_batl_state_to_json()
-  if not db_pool:
-    return
-  try:
-    async with db_pool.acquire() as conn:
-      await conn.execute(
-          """
-          INSERT INTO batl_state (id, state_json)
-          VALUES (1, $1::jsonb)
-          ON CONFLICT (id) DO UPDATE SET state_json = EXCLUDED.state_json
-          """,
-          json.dumps(batl_state, ensure_ascii=False),
-      )
-  except Exception as exc:
-    print(f"DB ERROR in persist_batl_state: {exc}")
-
-
-def _get_group_top_score(cid: int) -> int:
-  gdata = games.get(cid)
-  if not isinstance(gdata, dict):
-    return 0
-  sc = gdata.get("scores", {})
-  if not isinstance(sc, dict):
-    return 0
-  best = 0
-  for _, info in sc.items():
-    if not isinstance(info, dict):
-      continue
-    try:
-      pts = int(float(info.get("score", 0)))
-    except (TypeError, ValueError):
-      pts = 0
-    if pts > best:
-      best = pts
-  return best
-
-
-def _snapshot_all_group_scores() -> dict[str, int]:
-  snap: dict[str, int] = {}
-  for cid in set(chat_access.keys()) | set(games.keys()):
-    if int(cid) >= 0:
-      continue
-    snap[str(cid)] = _get_group_top_score(int(cid))
-  return snap
-
-
-def _get_tariff_tier(cid: int) -> str:
-  info = chat_access.get(cid) or {}
-  days = info.get("last_tariff_days")
-  try:
-    d_int = int(days) if days is not None else 0
-  except (TypeError, ValueError):
-    d_int = 0
-  if d_int >= 125 or d_int == 0:
-    return "vip"
-  if d_int >= 85:
-    return "premium"
-  if d_int >= 45:
-    return "standart"
-  if d_int >= 20:
-    return "plus"
-  return "none"
-
-
-def _has_public_link(cid: int) -> bool:
-  info = chat_access.get(cid) or {}
-  uname = str(info.get("username") or "").strip().lstrip("@")
-  return bool(uname)
-
-
-async def _ensure_daily_cycle_started() -> None:
-  today_str = _today_uz_str()
-  if batl_state.get("daily_start_date") != today_str:
-    batl_state["daily_start_date"] = today_str
-    batl_state["daily_baseline_scores"] = _snapshot_all_group_scores()
-    await persist_batl_state()
-
-
-async def _start_new_five_day_cycle(
-    start_date_str: str | None = None, allow_auto_publish: bool = True
-) -> None:
-  """Yangi 5 kunlik siklni boshlaydi va barcha guruhlar hisobini teng 0 dan start qiladi."""
-  d_str = start_date_str or _today_uz_str()
-  batl_state["five_day_start_date"] = d_str
-  batl_state["five_day_baseline_scores"] = _snapshot_all_group_scores()
-  batl_state["five_day_publish_after_cycle"] = allow_auto_publish
-  await persist_batl_state()
-
-
-def _is_five_day_auto_publish_active() -> bool:
-  """Bugun boshlangan sikl tugagandan keyingi natijalardan boshlab 22:00 reytingni e'lon qilish faolmi."""
-  if batl_state.get("five_day_publish_after_cycle", True):
-    return True
-  start_str = batl_state.get("five_day_start_date")
-  if not start_str:
-    return True
-  try:
-    start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
-  except ValueError:
-    return True
-  today_dt = _now_uz().date()
-  if (today_dt - start_dt).days >= BESHLIK_CYCLE_DAYS:
-    batl_state["five_day_publish_after_cycle"] = True
-    return True
-  return False
-
-
-async def _ensure_five_day_cycle_started() -> None:
-  now_uz = _now_uz()
-  today_dt = now_uz.date()
-  start_str = batl_state.get("five_day_start_date")
-
-  if not start_str:
-    await _start_new_five_day_cycle(
-        today_dt.strftime("%Y-%m-%d"), allow_auto_publish=False
-    )
-    return
-
-  try:
-    start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
-  except ValueError:
-    await _start_new_five_day_cycle(
-        today_dt.strftime("%Y-%m-%d"), allow_auto_publish=False
-    )
-    return
-
-  elapsed_days = (today_dt - start_dt).days
-  if elapsed_days > BESHLIK_CYCLE_DAYS:
-    await _start_new_five_day_cycle(
-        today_dt.strftime("%Y-%m-%d"), allow_auto_publish=True
-    )
-  elif elapsed_days == BESHLIK_CYCLE_DAYS:
-    # 5-kun 22:00 da oxirgi reyting e'lon qilinadi; 22:10 da yangi sikl 0 dan boshlanadi.
-    after_reset_time = (now_uz.hour > BESHLIK_RESET_HOUR) or (
-        now_uz.hour == BESHLIK_RESET_HOUR and now_uz.minute >= BESHLIK_RESET_MINUTE
-    )
-    if after_reset_time:
-      await _start_new_five_day_cycle(
-          today_dt.strftime("%Y-%m-%d"), allow_auto_publish=True
-      )
-      batl_state["five_day_last_reset_date"] = today_dt.strftime("%Y-%m-%d")
-      await persist_batl_state()
-
-
-def _format_group_entry(
-    cid: int, score_val: int, rank: int, with_link: bool, partner_badge: bool = False
-) -> str:
-  info = chat_access.get(cid) or {}
-  title = str(info.get("title") or f"Guruh ({cid})").strip()
-  safe_title = html.escape(title)
-  uname = str(info.get("username") or "").strip().lstrip("@")
-  medal = (
-      "🥇 " if rank == 1 else ("🥈 " if rank == 2 else ("🥉 " if rank == 3 else f"{rank}. "))
-  )
-  if with_link and uname:
-    name_part = f'<a href="https://t.me/{html.escape(uname)}">{safe_title}</a>'
-  else:
-    name_part = f"<b>{safe_title}</b>"
-  badge = " • <i>Hamkor guruh</i>" if partner_badge else ""
-  return f"{medal}{name_part} — <b>{score_val} ball</b>{badge}"
-
-
-def _compute_cycle_score(cid: int, baseline: dict) -> int:
-  cur_top = _get_group_top_score(cid)
-  try:
-    base_top = int(baseline.get(str(cid), cur_top))
-  except (TypeError, ValueError):
-    base_top = cur_top
-  return max(0, cur_top - base_top)
-
-
-async def build_kunlik_batl_rating_text() -> str:
-  """Kunlik batl reytingi (3 oylik tarif 10-20 hamkor guruh imtiyozi KUNLIK batlda qo'llanmaydi)."""
-  global broadcast_history
-  broadcast_history = _load_broadcast_history()
-  await _ensure_daily_cycle_started()
-  baseline = batl_state.get("daily_baseline_scores") or {}
-  entries: list[tuple[int, int, bool]] = []
-
-  for cid in set(chat_access.keys()) | set(games.keys()):
-    if int(cid) >= 0:
-      continue
-    if not await is_group_active(int(cid)):
-      continue
-    tier = _get_tariff_tier(int(cid))
-    if tier not in {"standart", "premium", "vip"}:
-      continue
-    score_metric = _compute_cycle_score(int(cid), baseline)
-    allow_link = (tier in {"premium", "vip"}) and _has_public_link(int(cid))
-    entries.append((int(cid), score_metric, allow_link))
-
-  entries.sort(key=lambda x: x[1], reverse=True)
-  date_str = batl_state.get("daily_start_date") or _today_uz_str()
-
-  if not entries:
-    return (
-        "📊 <b>KUNLIK BATL REYTINGI (TOP-10)</b>\n"
-        f"📅 Sana: <b>{html.escape(date_str)}</b>\n\n"
-        "Hozircha kunlik batlda ishtirok etayotgan guruhlar mavjud emas."
-    )
-
-  lines = [
-      "📊 <b>KUNLIK BATL REYTINGI (TOP-10)</b>",
-      f"📅 Sana: <b>{html.escape(date_str)}</b>\n",
-  ]
-  for idx, (cid, pts, allow_link) in enumerate(entries[:10], start=1):
-    lines.append(_format_group_entry(cid, pts, idx, allow_link, partner_badge=False))
-
-  return "\n".join(lines)
-
-
-async def build_beshlik_batl_rating_text() -> str:
-  """5 kunlik batl reytingi: har sikl 0 dan boshlanadi, reyting 22:00 da e'lon qilinadi, 3 oylik (VIP) 10-20 o'rinda hamkor guruh sifatida chiqadi."""
-  await _ensure_five_day_cycle_started()
-  baseline = batl_state.get("five_day_baseline_scores") or {}
-  entries: list[tuple[int, int, bool]] = []
-
-  for cid in set(chat_access.keys()) | set(games.keys()):
-    if int(cid) >= 0:
-      continue
-    if not await is_group_active(int(cid)):
-      continue
-    tier = _get_tariff_tier(int(cid))
-    if tier not in {"plus", "standart", "premium", "vip"}:
-      continue
-    score_metric = _compute_cycle_score(int(cid), baseline)
-    allow_link = (tier in {"premium", "vip"}) and _has_public_link(int(cid))
-    entries.append((int(cid), score_metric, allow_link))
-
-  entries.sort(key=lambda x: x[1], reverse=True)
-  start_str = batl_state.get("five_day_start_date") or _today_uz_str()
-
-  if not entries:
-    return (
-        "🏆 <b>5 KUNLIK BATL REYTINGI (TOP-10)</b>\n"
-        f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b>\n\n"
-        "Hozircha 5 kunlik batlda ishtirok etayotgan guruhlar mavjud emas."
-    )
-
-  lines = [
-      "🏆 <b>5 KUNLIK BATL REYTINGI (TOP-10)</b>",
-      f"🗓️ Sikl boshlangan sana: <b>{html.escape(start_str)}</b>\n",
-  ]
-  for idx, (cid, pts, allow_link) in enumerate(entries[:10], start=1):
-    lines.append(_format_group_entry(cid, pts, idx, allow_link, partner_badge=False))
-
-  partner_10_20 = [
-      (cid, pts)
-      for _, (cid, pts, _) in enumerate(entries[10:20], start=11)
-      if _get_tariff_tier(cid) == "vip"
-  ]
-  if partner_10_20:
-    lines.append("\n🤝 <b>Hamkor guruhlar (10–20 o'rin oralig'ida):</b>")
-    for cid, pts in partner_10_20:
-      info = chat_access.get(cid) or {}
-      title = html.escape(str(info.get("title") or f"Guruh ({cid})").strip())
-      uname = str(info.get("username") or "").strip().lstrip("@")
-      name_part = (
-          f'<a href="https://t.me/{html.escape(uname)}">{title}</a>'
-          if uname
-          else f"<b>{title}</b>"
-      )
-      lines.append(f"• {name_part} — <b>{pts} ball</b> (Hamkor guruh)")
-
-  return "\n".join(lines)
-
-
-def _parse_broadcast_targets(raw_arg: str) -> tuple[list[int], bool, str]:
-  target_ids: list[int] = []
-  explicit_target_mode = False
-  text_arg = raw_arg.strip()
-
-  if raw_arg:
-    tokens = raw_arg.split()
-    if tokens[0].lower() == "all":
-      explicit_target_mode = True
-      text_arg = " ".join(tokens[1:]).strip()
-    else:
-      parsed_ids: list[int] = []
-      remaining_tokens: list[str] = []
-      for tok in tokens:
-        cleaned_tok = tok.rstrip(",")
-        if cleaned_tok.lstrip("-").isdigit() and int(cleaned_tok) < 0:
-          parsed_ids.append(int(cleaned_tok))
-        else:
-          remaining_tokens.append(tok)
-      if parsed_ids:
-        explicit_target_mode = True
-        target_ids = parsed_ids
-        text_arg = " ".join(remaining_tokens).strip()
-
-  return target_ids, explicit_target_mode, text_arg
-
-
-async def _send_batl_broadcast(
-    message: types.Message,
-    raw_arg: str,
-    default_text: str,
-    batl_label: str,
-) -> None:
-  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
-    return
-
-  reply_msg = message.reply_to_message
-  target_ids, explicit_target_mode, text_arg = _parse_broadcast_targets(raw_arg)
-
-  if explicit_target_mode and target_ids:
-    group_ids = target_ids
-  else:
-    known_ids = set(chat_access.keys()) | set(games.keys())
-    if ADMIN_ID:
-      known_ids.discard(ADMIN_ID)
-    group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
-
-  if not group_ids:
-    await message.answer("Hozircha bazada hech qanday guruh topilmadi.")
-    return
-
-  final_text = text_arg if text_arg else (default_text if not reply_msg else "")
 
   sent_count = 0
   skipped_not_admin = 0
@@ -2190,18 +1253,14 @@ async def _send_batl_broadcast(
             message_id=reply_msg.message_id,
         )
       else:
-        await bot.send_message(
-            chat_id=cid,
-            text=final_text,
-            parse_mode=ParseMode.HTML,
-        )
+        await bot.send_message(chat_id=cid, text=text_arg)
       sent_count += 1
     except Exception:
       failed_count += 1
     await asyncio.sleep(0.05)
 
   await message.answer(
-      f"⚔️ <b>{html.escape(batl_label)} tarqatish yakunlandi:</b>\n\n"
+      "📢 <b>E'lon tarqatish yakunlandi:</b>\n\n"
       f"• Yuborildi: <b>{sent_count} ta guruhga</b>\n"
       f"• Bot admin emas: <b>{skipped_not_admin} ta guruh</b>\n"
       f"• Yuborilmadi (xato): <b>{failed_count} ta guruh</b>",
@@ -2209,225 +1268,7 @@ async def _send_batl_broadcast(
   )
 
 
-@dp.message(Command("kunlik_batl"), F.chat.type == "private")
-async def cmd_kunlik_batl(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: kunlik batl e'lonini yuboradi."""
-  await _send_batl_broadcast(
-      message=message,
-      raw_arg=(command.args or "").strip(),
-      default_text=KUNLIK_BATL_DEFAULT_TEXT,
-      batl_label="Kunlik batl e'loni",
-  )
-
-
-@dp.message(Command("beshlik_batl", "5kunlik_batl"), F.chat.type == "private")
-async def cmd_beshlik_batl(message: types.Message, command: CommandObject):
-  """Faqat ADMIN_ID uchun: 5 kunlik batl e'lonini yuboradi."""
-  await _send_batl_broadcast(
-      message=message,
-      raw_arg=(command.args or "").strip(),
-      default_text=BESHLIK_BATL_DEFAULT_TEXT,
-      batl_label="5 kunlik batl e'loni",
-  )
-
-
-@dp.message(Command("kunlik_reyting"))
-async def cmd_kunlik_reyting(message: types.Message):
-  """Istalgan foydalanuvchi uchun: kunlik batl reytingini ko'rsatadi."""
-  if message.chat.type != "private":
-    await record_group_seen(message.chat, in_group=True)
-    if not await is_group_active(message.chat.id):
-      await send_sleeping_group_message(message)
-      return
-
-  text = await build_kunlik_batl_rating_text()
-  await message.answer(
-      text,
-      parse_mode=ParseMode.HTML,
-  )
-
-
-@dp.message(Command("5kunlik_reyting", "beshlik_reyting"))
-async def cmd_5kunlik_reyting(message: types.Message):
-  """Istalgan foydalanuvchi uchun: 5 kunlik batl reytingini ko'rsatadi."""
-  if message.chat.type != "private":
-    await record_group_seen(message.chat, in_group=True)
-    if not await is_group_active(message.chat.id):
-      await send_sleeping_group_message(message)
-      return
-
-  text = await build_beshlik_batl_rating_text()
-  await message.answer(
-      text,
-      parse_mode=ParseMode.HTML,
-  )
-
-
-async def publish_daily_battle_rating_to_groups() -> None:
-  """Har kuni soat 10:00 da (UZ_TZ) kunlik batl reytingini faol admin guruhlarga yuboradi."""
-  today_str = _today_uz_str()
-  text = await build_kunlik_batl_rating_text()
-
-  known_ids = set(chat_access.keys()) | set(games.keys())
-  if ADMIN_ID:
-    known_ids.discard(ADMIN_ID)
-
-  for cid in sorted(known_ids):
-    if int(cid) >= 0:
-      continue
-    if not await is_group_active(int(cid)):
-      continue
-    if not await _bot_is_group_admin(int(cid)):
-      continue
-    try:
-      await bot.send_message(
-          chat_id=int(cid),
-          text=text,
-          parse_mode=ParseMode.HTML,
-      )
-    except Exception:
-      pass
-    await asyncio.sleep(0.05)
-
-  batl_state["daily_last_auto_date"] = today_str
-  batl_state["daily_start_date"] = today_str
-  batl_state["daily_baseline_scores"] = _snapshot_all_group_scores()
-  await persist_batl_state()
-
-
-async def publish_five_day_battle_rating_to_groups() -> None:
-  """Sikl davom etayotgan kunlarda soat 22:00 da (UZ_TZ) faqat 5 kunlik batl reytingini e'lon qiladi."""
-  today_str = _today_uz_str()
-  text = await build_beshlik_batl_rating_text()
-
-  known_ids = set(chat_access.keys()) | set(games.keys())
-  if ADMIN_ID:
-    known_ids.discard(ADMIN_ID)
-
-  for cid in sorted(known_ids):
-    if int(cid) >= 0:
-      continue
-    if not await is_group_active(int(cid)):
-      continue
-    if not await _bot_is_group_admin(int(cid)):
-      continue
-    try:
-      await bot.send_message(
-          chat_id=int(cid),
-          text=text,
-          parse_mode=ParseMode.HTML,
-      )
-    except Exception:
-      pass
-    await asyncio.sleep(0.05)
-
-  batl_state["five_day_last_auto_date"] = today_str
-  await persist_batl_state()
-
-
-async def watch_daily_battle_schedule() -> None:
-  """Har 30 soniyada Toshkent vaqti bilan 10:00 kunlik, 22:00 5 kunlik reyting va 22:10 da yangi 5 kunlik siklni boshlaydi."""
-  while True:
-    try:
-      await _ensure_daily_cycle_started()
-      await _ensure_five_day_cycle_started()
-      now_uz = _now_uz()
-      today_dt = now_uz.date()
-      today_str = today_dt.strftime("%Y-%m-%d")
-
-      if (
-          now_uz.hour == KUNLIK_AUTO_HOUR
-          and now_uz.minute >= KUNLIK_AUTO_MINUTE
-          and batl_state.get("daily_last_auto_date") != today_str
-      ):
-        await publish_daily_battle_rating_to_groups()
-
-      if (
-          now_uz.hour == BESHLIK_AUTO_HOUR
-          and now_uz.minute >= BESHLIK_AUTO_MINUTE
-          and _is_five_day_auto_publish_active()
-          and batl_state.get("five_day_last_auto_date") != today_str
-      ):
-        await publish_five_day_battle_rating_to_groups()
-
-      start_str = batl_state.get("five_day_start_date")
-      if start_str:
-        try:
-          start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
-          if (today_dt - start_dt).days >= BESHLIK_CYCLE_DAYS:
-            after_reset = (now_uz.hour > BESHLIK_RESET_HOUR) or (
-                now_uz.hour == BESHLIK_RESET_HOUR
-                and now_uz.minute >= BESHLIK_RESET_MINUTE
-            )
-            if after_reset and batl_state.get("five_day_last_reset_date") != today_str:
-              await _start_new_five_day_cycle(today_str, allow_auto_publish=True)
-              batl_state["five_day_last_reset_date"] = today_str
-              await persist_batl_state()
-        except ValueError:
-          pass
-    except Exception as exc:
-      print(f"SCHEDULER ERROR in watch_daily_battle_schedule: {exc}")
-    await asyncio.sleep(30)
-
-@dp.message(Command("adminsiz_chiqar", "adminsizlarni_chiqar"))
-async def cmd_adminsiz_chiqar(message: types.Message):
-  """Faqat ADMIN_ID uchun: botga admin huquqi berilmagan barcha guruhlardan botni chiqaradi."""
-  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
-    return
-
-  known_ids = set(chat_access.keys()) | set(games.keys())
-  if ADMIN_ID:
-    known_ids.discard(ADMIN_ID)
-  group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
-
-  if not group_ids:
-    await message.answer("Bazada guruhlar topilmadi.")
-    return
-
-  status_msg = await message.answer("⏳ Admin berilmagan guruhlar tekshirilmoqda...")
-  left_count = 0
-  admin_count = 0
-  removed_stale_count = 0
-  left_names = []
-
-  for cid in group_ids:
-    info = chat_access.get(cid, {})
-    title = str(info.get("title") or f"Guruh ({cid})")
-    try:
-      me = await bot.get_me()
-      member = await bot.get_chat_member(chat_id=cid, user_id=me.id)
-      if member.status in {"administrator", "creator"}:
-        admin_count += 1
-        continue
-      if member.status in {"left", "kicked"}:
-        await remove_chat_record(cid)
-        removed_stale_count += 1
-        continue
-      await bot.leave_chat(chat_id=cid)
-      await remove_chat_record(cid)
-      left_count += 1
-      left_names.append(f"• {html.escape(title)} (<code>{cid}</code>)")
-    except Exception:
-      await remove_chat_record(cid)
-      removed_stale_count += 1
-    await asyncio.sleep(0.05)
-
-  details = "\n".join(left_names[:25])
-  if len(left_names) > 25:
-    details += f"\n... va yana {len(left_names) - 25} ta guruh"
-  details_block = f"\n\n<b>Chiqib ketilgan guruhlar:</b>\n{details}" if details else ""
-
-  await status_msg.edit_text(
-      "✅ <b>Admin berilmagan guruhlarni tozalash yakunlandi:</b>\n\n"
-      f"• Chiqib ketildi: <b>{left_count} ta guruh</b>\n"
-      f"• Admin bo'lgan guruhlar (qoldirildi): <b>{admin_count} ta guruh</b>\n"
-      f"• Eski/o'lik yozuvlar tozalandi: <b>{removed_stale_count} ta</b>"
-      f"{details_block}",
-      parse_mode=ParseMode.HTML,
-  )
-
-
-@dp.message(Command("chiq", "chiqar", "guruhdan_chiq"))
+@dp.message(Command("chiq"))
 async def cmd_chiq(message: types.Message, command: CommandObject):
   if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
     return
@@ -2469,91 +1310,6 @@ async def cmd_chiq(message: types.Message, command: CommandObject):
         " ro'yxatidan o'chirildi.",
         parse_mode=ParseMode.HTML,
     )
-
-
-@dp.callback_query(F.data.startswith("pickgrp:"))
-async def cb_pick_group_for_tariff(callback: types.CallbackQuery):
-  parts = (callback.data or "").split(":")
-  if len(parts) != 3:
-    await callback.answer()
-    return
-
-  _, code, cid_str = parts
-  tariff = TARIFFS.get(code)
-  if not tariff:
-    await callback.answer("Noto'g'ri tarif", show_alert=True)
-    return
-
-  try:
-    target_cid = int(cid_str)
-  except ValueError:
-    await callback.answer("Guruh ID noto'g'ri", show_alert=True)
-    return
-
-  user = callback.from_user
-  buyer_data = build_user_data(user)
-  if target_cid != 0 and user:
-    pending_buyers[target_cid] = buyer_data
-    pending_receipts[user.id] = {
-        "code": code,
-        "label": tariff["label"],
-        "days": tariff["days"],
-        "price": tariff["price"],
-        "chat_id": target_cid,
-        "buyer_data": buyer_data,
-    }
-
-  admin_user_link = format_admin_profile_link_html(
-      user.id if user else 0,
-      buyer_data,
-  )
-  group_title = html.escape(str(chat_access.get(target_cid, {}).get("title") or f"Guruh ({target_cid})"))
-  duration_title = tariff["label"].replace("ga", "lik")
-  card_display = (
-      html.escape(CARD_NUMBER) if CARD_NUMBER else "<i>Karta kiritilmagan</i>"
-  )
-  perks_block = format_tariff_perks_block(tariff)
-
-  text = (
-      f"Guruh: <b>{group_title}</b> (<code>{target_cid}</code>)\n"
-      f"{html.escape(duration_title)} obuna uchun\n\n"
-      f"<code>{card_display}</code>\n\n"
-      f"raqamiga {html.escape(tariff['price'])} o'tkazasiz🙂\n"
-      f"{perks_block}\n\n"
-      "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
-      " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
-      " yuborasiz"
-  )
-
-  await callback.message.edit_text(
-      text,
-      reply_markup=build_payment_action_keyboard(code, target_cid),
-      parse_mode=ParseMode.HTML,
-  )
-
-  if ADMIN_ID:
-    days_val = tariff["days"]
-    days_info = f"{days_val} kun" if days_val is not None else "Cheksiz"
-    activate_cmd = build_activate_command(target_cid, days_val)
-    prev_tariff_line = format_previous_tariff_text(target_cid)
-    try:
-      await bot.send_message(
-          chat_id=ADMIN_ID,
-          text=(
-              "💳 <b>Yangi tarif tanlandi!</b>\n\n"
-              f"Foydalanuvchi: {admin_user_link}\n"
-              f"Guruh: <b>{group_title}</b> (<code>{target_cid}</code>)\n"
-              f"{prev_tariff_line}\n"
-              f"Yangi tarif: <b>{html.escape(tariff['label'])}</b>"
-              f" ({html.escape(tariff['price'])}, {days_info})\n\n"
-              f"Uyg'otish buyrug'i:\n<code>{activate_cmd}</code>"
-          ),
-          parse_mode=ParseMode.HTML,
-      )
-    except Exception:
-      pass
-
-  await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("back:"))
@@ -2667,13 +1423,11 @@ async def cb_select_tariff(callback: types.CallbackQuery):
       html.escape(CARD_NUMBER) if CARD_NUMBER else "<i>Karta kiritilmagan</i>"
   )
   cid_line = f"\nGuruh ID: <code>{target_cid}</code>" if target_cid != 0 else ""
-  perks_block = format_tariff_perks_block(tariff)
 
   text = (
       f"{html.escape(duration_title)} obuna uchun\n\n"
       f"<code>{card_display}</code>\n\n"
       f"raqamiga {html.escape(tariff['price'])} o'tkazasiz🙂{cid_line}\n"
-      f"{perks_block}\n\n"
       "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
       " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
       " yuborasiz"
@@ -3786,61 +2540,6 @@ async def start_web_server():
   await site.start()
 
 
-async def watch_admin_deadlines() -> None:
-  """Har 10 daqiqada 72 soat (3 kun) ichida admin qilinmagan guruhlarni tekshiradi va chiqib ketadi."""
-  while True:
-    try:
-      now_utc = datetime.now(timezone.utc)
-      for cid, info in list(chat_access.items()):
-        if int(cid) >= 0 or not isinstance(info, dict):
-          continue
-        deadline_str = info.get("admin_deadline_at")
-        if not deadline_str:
-          continue
-        deadline_dt = _parse_iso_dt(deadline_str)
-        if deadline_dt is None or now_utc < deadline_dt:
-          continue
-
-        if await _bot_is_group_admin(cid):
-          info["admin_deadline_at"] = None
-          chat_access[cid] = info
-          await persist_chat_access(cid)
-          continue
-
-        title = str(info.get("title") or f"Guruh ({cid})")
-        adder_id = info.get("added_by_user_id")
-        try:
-          await bot.send_message(
-              chat_id=cid,
-              text="3 kun ichida admin huquqi berilmagani sababli guruh bilan hayrlashaman! 👋",
-          )
-        except Exception:
-          pass
-        try:
-          await bot.leave_chat(chat_id=cid)
-        except Exception:
-          pass
-
-        await remove_chat_record(cid)
-
-        if adder_id:
-          try:
-            await bot.send_message(
-                chat_id=int(adder_id),
-                text=(
-                    f"👋 <b>{html.escape(title)}</b> guruhida 3 kun (72 soat) ichida"
-                    " admin qilinmaganim sababli guruhni tark etdim."
-                ),
-                parse_mode=ParseMode.HTML,
-            )
-          except Exception:
-            pass
-    except Exception as exc:
-      print(f"WATCHER ERROR in watch_admin_deadlines: {exc}")
-
-    await asyncio.sleep(600)
-
-
 async def main():
   global games, chat_access
   await init_db()
@@ -3848,14 +2547,7 @@ async def main():
   games = await load_state_async()
   chat_access = await load_access_async()
   global_excluded_users = await load_global_excluded_async()
-  global batl_state
-  await init_batl_db_table()
-  batl_state = await load_batl_state_async()
-  await _ensure_daily_cycle_started()
-  await _ensure_five_day_cycle_started()
   await start_web_server()
-  asyncio.create_task(watch_admin_deadlines())
-  asyncio.create_task(watch_daily_battle_schedule())
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
 
