@@ -36,6 +36,8 @@ TEMP_ACCESS_FILE = "chats_access.tmp"
 GLOBAL_EXCLUDED_FILE = "global_excluded.json"
 TEMP_GLOBAL_EXCLUDED_FILE = "global_excluded.tmp"
 
+TASHKENT_TZ = timezone(timedelta(hours=5))
+
 db_pool = None
 games = {}
 chat_access = {}
@@ -44,11 +46,72 @@ pending_buyers = {}
 global_excluded_users: set[int] = set()
 
 TARIFFS = {
-    "15d": {"label": "15 kunga", "days": 15, "price": "12 000 so'm"},
-    "1m": {"label": "1 oyga", "days": 30, "price": "20 000 so'm"},
-    "2m": {"label": "2 oyga", "days": 60, "price": "35 000 so'm"},
-    "3m": {"label": "3 oyga", "days": 90, "price": "50 000 so'm"},
+    "15d": {"label": "15 kunga", "days": 15, "price": "12 000 so'm", "price_num": 12000, "is_monthly": True},
+    "1m": {"label": "1 oyga", "days": 30, "price": "20 000 so'm", "price_num": 20000, "is_monthly": True},
+    "2m": {"label": "2 oyga", "days": 60, "price": "35 000 so'm", "price_num": 35000, "is_monthly": True},
+    "3m": {"label": "3 oyga", "days": 90, "price": "50 000 so'm", "price_num": 50000, "is_monthly": True},
 }
+
+FRIDAY_PROMO_TEXT = (
+    "🕌✨ <b>JUMA MUBORAK! BUGUN MAXSUS JUMA AKSIYASI!</b> ✨🕌\n\n"
+    "🔥 Faqat bugun barcha tariflarga <b>50% CHEGIRMA</b> va ustiga <b>+5 KUN BONUS</b>!\n"
+    "📦 (15 kunlik, 1 oylik, 2 oylik, 3 oylik — barchasiga!)\n\n"
+    "⚡ <b>Qanday faollashtiriladi?</b>\n"
+    "1️⃣ Botni guruhingizga qo'shing va admin huquqini bering ✅\n"
+    "2️⃣ Guruhda yoki botda /start buyrug'ini bering 🚀\n"
+    "3️⃣ Tarifni <b>50% chegirmada</b> oling va <b>+5 kun bonus</b>ga ega bo'ling 🎁\n\n"
+    "⏳🔥 <i>Aksiya faqat bugun Juma kuni amal qiladi — ulgurib qoling!</i>\n"
+    "♻️✨ <i>Tariflarni avvalroq sotib olgan guruhlar ham aksiyadan foydalanishi mumkin!</i>"
+)
+
+
+def is_friday_tashkent(now_dt: datetime | None = None) -> bool:
+  """Toshkent vaqti bilan hozir Juma kuni (weekday == 4) ekanligini tekshiradi."""
+  current = now_dt.astimezone(TASHKENT_TZ) if now_dt else datetime.now(TASHKENT_TZ)
+  return current.weekday() == 4
+
+
+def _format_uzs_amount(amount: int) -> str:
+  return f"{amount:,}".replace(",", " ") + " so'm"
+
+
+def get_effective_tariff(code: str, now_dt: datetime | None = None) -> dict | None:
+  """Juma kuni tariflar uchun 50% chegirma va +5 kun bonusni hisoblab beradi."""
+  base = TARIFFS.get(code)
+  if not base:
+    return None
+  friday_active = is_friday_tashkent(now_dt) and bool(base.get("is_monthly", False))
+  base_days = int(base["days"])
+  base_price_num = int(base["price_num"])
+  if friday_active:
+    eff_days = base_days + 5
+    eff_price_num = base_price_num // 2
+    eff_price = _format_uzs_amount(eff_price_num)
+    return {
+        "code": code,
+        "label": base["label"],
+        "base_days": base_days,
+        "days": eff_days,
+        "bonus_days": 5,
+        "base_price": base["price"],
+        "price": eff_price,
+        "price_num": eff_price_num,
+        "is_monthly": True,
+        "is_friday_promo": True,
+    }
+  return {
+      "code": code,
+      "label": base["label"],
+      "base_days": base_days,
+      "days": base_days,
+      "bonus_days": 0,
+      "base_price": base["price"],
+      "price": base["price"],
+      "price_num": base_price_num,
+      "is_monthly": bool(base.get("is_monthly", False)),
+      "is_friday_promo": False,
+  }
+
 
 CYR_TO_LAT = {
     "а": "a",
@@ -565,7 +628,7 @@ def get_expiry_text(chat_id: int) -> str:
   exp_dt = _parse_iso_dt(expires_at)
   if exp_dt is None:
     return str(expires_at)
-  return exp_dt.astimezone(timezone(timedelta(hours=5))).strftime(
+  return exp_dt.astimezone(TASHKENT_TZ).strftime(
       "%Y-%m-%d %H:%M"
   )
 
@@ -603,22 +666,27 @@ async def send_sleeping_group_message(message: types.Message) -> None:
 
 def build_tariffs_keyboard(target_chat_id: int | None) -> InlineKeyboardMarkup:
   cid_part = str(target_chat_id) if target_chat_id is not None else "0"
+  friday_now = is_friday_tashkent()
+  t_15d = "🔥 15 kunga (50% + 5 kun)" if friday_now else "15 kunga"
+  t_1m = "🔥 1 oyga (50% + 5 kun)" if friday_now else "1 oyga"
+  t_2m = "🔥 2 oyga (50% + 5 kun)" if friday_now else "2 oyga"
+  t_3m = "🔥 3 oyga (50% + 5 kun)" if friday_now else "3 oyga"
   return InlineKeyboardMarkup(
       inline_keyboard=[
           [
               InlineKeyboardButton(
-                  text="15 kunga", callback_data=f"tar:15d:{cid_part}"
+                  text=t_15d, callback_data=f"tar:15d:{cid_part}"
               ),
               InlineKeyboardButton(
-                  text="1 oyga", callback_data=f"tar:1m:{cid_part}"
+                  text=t_1m, callback_data=f"tar:1m:{cid_part}"
               ),
           ],
           [
               InlineKeyboardButton(
-                  text="2 oyga", callback_data=f"tar:2m:{cid_part}"
+                  text=t_2m, callback_data=f"tar:2m:{cid_part}"
               ),
               InlineKeyboardButton(
-                  text="3 oyga", callback_data=f"tar:3m:{cid_part}"
+                  text=t_3m, callback_data=f"tar:3m:{cid_part}"
               ),
           ],
       ]
@@ -668,6 +736,17 @@ def format_tariffs_text(target_chat_id: int | None) -> str:
       if target_chat_id is not None
       else ""
   )
+  if is_friday_tashkent():
+    return (
+        "🕌 <b>JUMA AKSIYASI FAOL!</b> Barcha tariflarga <b>50% CHEGIRMA</b>"
+        " va qo'shimcha <b>+5 KUN BONUS</b>!\n"
+        f"{group_line}"
+        "• 15 kun uchun — <s>12 000</s> <b>6 000 so'm</b> (15 + 5 = <b>20 kun</b>)\n"
+        "• 1 oy uchun — <s>20 000</s> <b>10 000 so'm</b> (30 + 5 = <b>35 kun</b>)\n"
+        "• 2 oy uchun — <s>35 000</s> <b>17 500 so'm</b> (60 + 5 = <b>65 kun</b>)\n"
+        "• 3 oy uchun — <s>50 000</s> <b>25 000 so'm</b> (90 + 5 = <b>95 kun</b>)\n\n"
+        "Botni uyg'otmoqchi bo'lgan muddatingizni tanlang 👇"
+    )
   return (
       "Botdan foydalanish uchun to'lov qilish zarur! Iltimos, quyidagi"
       f" tariflardan birini tanlang!\n{group_line}"
@@ -1209,6 +1288,66 @@ async def _bot_is_group_admin(chat_id: int) -> bool:
     return False
 
 
+async def broadcast_friday_promo() -> tuple[int, int]:
+  """Bot mavjud bo'lgan barcha guruhlarga Juma aksiyasi e'lonini yuboradi."""
+  known_ids = set(chat_access.keys()) | set(games.keys())
+  if ADMIN_ID:
+    known_ids.discard(ADMIN_ID)
+  group_ids = [cid for cid in sorted(known_ids) if int(cid) < 0]
+
+  sent_count = 0
+  failed_count = 0
+  for cid in group_ids:
+    info = chat_access.get(cid, {})
+    if info and not info.get("in_group", True):
+      continue
+    try:
+      await bot.send_message(
+          chat_id=cid,
+          text=FRIDAY_PROMO_TEXT,
+          parse_mode=ParseMode.HTML,
+      )
+      sent_count += 1
+    except Exception:
+      failed_count += 1
+    await asyncio.sleep(0.05)
+  return sent_count, failed_count
+
+
+async def friday_promo_scheduler() -> None:
+  """Har hafta faqat Juma kuni (Toshkent vaqti bilan) har 3 soatda avtomatik e'lon yuboradi."""
+  last_slot_key: str | None = None
+  while True:
+    try:
+      now_tashkent = datetime.now(TASHKENT_TZ)
+      if now_tashkent.weekday() == 4 and (now_tashkent.hour % 3 == 0):
+        slot_key = now_tashkent.strftime("%Y-%m-%d-%H")
+        if slot_key != last_slot_key:
+          last_slot_key = slot_key
+          sent_cnt, fail_cnt = await broadcast_friday_promo()
+          print(
+              f"FRIDAY PROMO [{slot_key}]: sent={sent_cnt}, failed={fail_cnt}"
+          )
+    except Exception as exc:
+      print(f"FRIDAY PROMO SCHEDULER ERROR: {exc}")
+    await asyncio.sleep(30)
+
+
+@dp.message(Command("juma_elon", "jumaelon"), F.chat.type == "private")
+async def cmd_juma_elon(message: types.Message):
+  """Faqat ADMIN_ID uchun: Juma aksiyasi e'lonini istagan vaqtda darhol guruhlarga yuboradi."""
+  if not ADMIN_ID or not message.from_user or message.from_user.id != ADMIN_ID:
+    return
+
+  sent_cnt, fail_cnt = await broadcast_friday_promo()
+  await message.answer(
+      "🕌 <b>Juma aksiyasi e'loni yuborildi!</b>\n\n"
+      f"• Yuborildi: <b>{sent_cnt} ta guruhga</b>\n"
+      f"• Yuborilmadi: <b>{fail_cnt} ta guruh</b>",
+      parse_mode=ParseMode.HTML,
+  )
+
+
 @dp.message(Command("elon"), F.chat.type == "private")
 async def cmd_elon(message: types.Message, command: CommandObject):
   """Faqat ADMIN_ID uchun: bot admin bo'lgan guruhlarga e'lon yuboradi."""
@@ -1341,7 +1480,7 @@ async def cb_paid_clicked(callback: types.CallbackQuery):
     return
 
   _, code, cid_str = parts
-  tariff = TARIFFS.get(code)
+  tariff = get_effective_tariff(code)
   try:
     target_cid = int(cid_str)
   except ValueError:
@@ -1356,7 +1495,10 @@ async def cb_paid_clicked(callback: types.CallbackQuery):
           "code": code,
           "label": tariff["label"],
           "days": tariff["days"],
+          "base_days": tariff["base_days"],
+          "bonus_days": tariff["bonus_days"],
           "price": tariff["price"],
+          "is_friday_promo": tariff["is_friday_promo"],
           "chat_id": target_cid,
           "buyer_data": buyer_data,
       }
@@ -1398,7 +1540,7 @@ async def cb_select_tariff(callback: types.CallbackQuery):
     return
 
   _, code, cid_str = parts
-  tariff = TARIFFS.get(code)
+  tariff = get_effective_tariff(code)
   if not tariff:
     await callback.answer("Noto'g'ri tarif", show_alert=True)
     return
@@ -1424,14 +1566,29 @@ async def cb_select_tariff(callback: types.CallbackQuery):
   )
   cid_line = f"\nGuruh ID: <code>{target_cid}</code>" if target_cid != 0 else ""
 
-  text = (
-      f"{html.escape(duration_title)} obuna uchun\n\n"
-      f"<code>{card_display}</code>\n\n"
-      f"raqamiga {html.escape(tariff['price'])} o'tkazasiz🙂{cid_line}\n"
-      "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
-      " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
-      " yuborasiz"
-  )
+  if tariff["is_friday_promo"]:
+    promo_header = (
+        f"🕌 <b>JUMA AKSIYASI:</b> {html.escape(duration_title)} obuna"
+        f" (<b>{tariff['base_days']} + {tariff['bonus_days']} = {tariff['days']} kun</b>)\n"
+        f"50% chegirma bilan: <s>{html.escape(tariff['base_price'])}</s> → <b>{html.escape(tariff['price'])}</b>\n\n"
+    )
+    text = (
+        f"{promo_header}"
+        f"<code>{card_display}</code>\n\n"
+        f"raqamiga <b>{html.escape(tariff['price'])}</b> o'tkazasiz🙂{cid_line}\n"
+        "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
+        " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
+        " yuborasiz"
+    )
+  else:
+    text = (
+        f"{html.escape(duration_title)} obuna uchun\n\n"
+        f"<code>{card_display}</code>\n\n"
+        f"raqamiga {html.escape(tariff['price'])} o'tkazasiz🙂{cid_line}\n"
+        "To'lov qilganingizdan so'ng pastdagi tugmachani bosib 👇 to'lov"
+        " qilinganligi to'g'risida biror nimani (screenshot, rasm va h.k)"
+        " yuborasiz"
+    )
 
   await callback.message.answer(
       text,
@@ -1441,7 +1598,13 @@ async def cb_select_tariff(callback: types.CallbackQuery):
 
   if ADMIN_ID:
     days_val = tariff["days"]
-    days_info = f"{days_val} kun" if days_val is not None else "Cheksiz"
+    if tariff["is_friday_promo"]:
+      days_info = (
+          f"{tariff['base_days']} + {tariff['bonus_days']} = {days_val} kun"
+          " (Juma 50% chegirma)"
+      )
+    else:
+      days_info = f"{days_val} kun" if days_val is not None else "Cheksiz"
     activate_cmd = build_activate_command(target_cid, days_val)
     prev_tariff_line = format_previous_tariff_text(target_cid)
     try:
@@ -1956,7 +2119,6 @@ async def cmd_reytingdan_ochir(message: types.Message, command: CommandObject):
     return
 
   target_uid = matched_ids[0]
-  # Ballarni o'chirmaymiz, faqat ushbu guruh reytingida ko'rinmaydigan qilib belgilaymiz
   scores[target_uid]["hidden_in_group"] = True
   await persist_state(target_cid)
 
@@ -2222,7 +2384,6 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
 
   await remove_global_excluded_user(target_uid)
 
-  # Calculate current total score across all groups for target_uid
   current_total = 0
   for gdata in games.values():
     if not isinstance(gdata, dict):
@@ -2258,7 +2419,6 @@ async def cmd_umumiyga_qosh(message: types.Message, command: CommandObject):
       current_total = explicit_points
       points_note = f"\n📊 Umumiy balli: <b>{current_total} ball</b>"
     else:
-      # Agar mavjud yozuv bo'lsa, ballni yangi qiymatga tenglaymiz
       updated_any = False
       for g_cid, gdata in games.items():
         if isinstance(gdata, dict) and isinstance(gdata.get("scores"), dict) and target_uid in gdata["scores"]:
@@ -2346,9 +2506,15 @@ async def handle_payment_photo(message: types.Message):
 
   days_val = info["days"] if info else 15
   if info:
-    days_label = (
-        f"{info['days']} kun" if info["days"] is not None else "Cheksiz"
-    )
+    if info.get("is_friday_promo"):
+      days_label = (
+          f"{info['base_days']} + {info['bonus_days']} = {info['days']} kun"
+          " (Juma aksiyasi)"
+      )
+    else:
+      days_label = (
+          f"{info['days']} kun" if info["days"] is not None else "Cheksiz"
+      )
     tariff_text = f"{info['label']} ({info['price']}, {days_label})"
   else:
     days_label = f"{days_val} kun"
@@ -2467,7 +2633,6 @@ async def check_answer(message: types.Message):
       )
     scores = chat_game["scores"]
 
-    # Agar bir xil username/nom bilan sintetik (-776...) yoki boshqa yozuv bo'lsa, uning ballini asosiy ID ga o'tkazamiz
     u_norm = username.strip().lstrip("@").lower()
     n_norm = user_name.strip().lower()
     migrated_pts = 0
@@ -2548,6 +2713,7 @@ async def main():
   chat_access = await load_access_async()
   global_excluded_users = await load_global_excluded_async()
   await start_web_server()
+  asyncio.create_task(friday_promo_scheduler())
   await bot.delete_webhook(drop_pending_updates=True)
   await dp.start_polling(bot)
 
